@@ -11,7 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var worktreeRoot string
+var (
+	version      = "dev"
+	worktreeRoot string
+)
 
 func init() {
 	// Set worktree root from environment or default
@@ -48,6 +51,7 @@ func init() {
 	rootCmd.AddCommand(removeCmd)
 	rootCmd.AddCommand(pruneCmd)
 	rootCmd.AddCommand(shellenvCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 // Helper functions
@@ -400,5 +404,13 @@ if [ -n "$ZSH_VERSION" ]; then
     compdef _wt_complete_zsh wt
 fi
 `)
+	},
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Show version information",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("wt version %s\n", version)
 	},
 }

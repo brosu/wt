@@ -79,6 +79,9 @@ wt prune
 # Show shell integration code
 wt shellenv
 
+# Show version
+wt version
+
 # Show help
 wt --help
 wt <command> --help
