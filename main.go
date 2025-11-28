@@ -36,7 +36,7 @@ var rootCmd = &cobra.Command{
 Worktrees are organized at: ` + worktreeRoot + `/<repo>/<branch>
 Set WORKTREE_ROOT to customize the location.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 
@@ -274,7 +274,7 @@ var listCmd = &cobra.Command{
 		gitCmd := exec.Command("git", "worktree", "list")
 		gitCmd.Stdout = os.Stdout
 		gitCmd.Stderr = os.Stderr
-		gitCmd.Run()
+		_ = gitCmd.Run()
 	},
 }
 
