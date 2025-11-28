@@ -174,3 +174,102 @@ jobs:
             --title "Release ${{ github.ref_name }}" \
             --generate-notes \
             release/*
+
+  update-formula:
+    name: Update Homebrew Formula
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          repositories: |
+            wt
+            homebrew-tap
+
+      - name: Download checksums artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Extract version and checksums
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+          # Find checksums.txt in artifacts
+          CHECKSUMS_FILE=$(find artifacts -name "checksums.txt" -type f | head -1)
+
+          # Extract bottle SHA256s from checksums
+          AARCH64_LINUX=$(grep "wt-${VERSION}.aarch64_linux.bottle.tar.gz" "$CHECKSUMS_FILE" | awk '{print $1}')
+          ARM64_SONOMA=$(grep "wt-${VERSION}.arm64_sonoma.bottle.tar.gz" "$CHECKSUMS_FILE" | awk '{print $1}')
+          VENTURA=$(grep "wt-${VERSION}.ventura.bottle.tar.gz" "$CHECKSUMS_FILE" | awk '{print $1}')
+          X86_64_LINUX=$(grep "wt-${VERSION}.x86_64_linux.bottle.tar.gz" "$CHECKSUMS_FILE" | awk '{print $1}')
+
+          echo "AARCH64_LINUX=$AARCH64_LINUX" >> $GITHUB_OUTPUT
+          echo "ARM64_SONOMA=$ARM64_SONOMA" >> $GITHUB_OUTPUT
+          echo "VENTURA=$VENTURA" >> $GITHUB_OUTPUT
+          echo "X86_64_LINUX=$X86_64_LINUX" >> $GITHUB_OUTPUT
+
+      - name: Download source tarball and calculate SHA256
+        id: source
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          wget "https://github.com/timvw/wt/archive/refs/tags/v${VERSION}.tar.gz" -O source.tar.gz
+          SOURCE_SHA256=$(shasum -a 256 source.tar.gz | awk '{print $1}')
+          echo "SHA256=$SOURCE_SHA256" >> $GITHUB_OUTPUT
+
+      - name: Clone homebrew-tap repository
+        run: |
+          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/timvw/homebrew-tap.git
+
+      - name: Update formula
+        run: |
+          cd homebrew-tap
+          VERSION=${{ steps.version.outputs.VERSION }}
+
+          # Update the formula file
+          cat > Formula/wt.rb << 'EOF'
+          class Wt < Formula
+            desc "Git worktree helper"
+            homepage "https://github.com/timvw/wt"
+            url "https://github.com/timvw/wt/archive/refs/tags/v${{ steps.version.outputs.VERSION }}.tar.gz"
+            sha256 "${{ steps.source.outputs.SHA256 }}"
+            license "MIT"
+            head "https://github.com/timvw/wt.git", branch: "main"
+
+            bottle do
+              root_url "https://github.com/timvw/wt/releases/download/v${{ steps.version.outputs.VERSION }}"
+              sha256 cellar: :any_skip_relocation, arm64_sonoma:  "${{ steps.version.outputs.ARM64_SONOMA }}"
+              sha256 cellar: :any_skip_relocation, ventura:       "${{ steps.version.outputs.VENTURA }}"
+              sha256 cellar: :any_skip_relocation, x86_64_linux:  "${{ steps.version.outputs.X86_64_LINUX }}"
+              sha256 cellar: :any_skip_relocation, aarch64_linux: "${{ steps.version.outputs.AARCH64_LINUX }}"
+            end
+
+            def install
+              bin.install "wt"
+            end
+
+            test do
+              assert_match "wt version", shell_output("#{bin}/wt version")
+            end
+          end
+          EOF
+
+      - name: Commit and push changes
+        run: |
+          cd homebrew-tap
+          git config user.name "timvw-ci-bot[bot]"
+          git config user.email "timvw-ci-bot[bot]@users.noreply.github.com"
+          git add Formula/wt.rb
+          git commit -m "chore: update wt formula to v${{ steps.version.outputs.VERSION }}
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+          Co-Authored-By: Claude <noreply@anthropic.com>"
+          git push
