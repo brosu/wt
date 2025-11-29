@@ -14,6 +14,7 @@ Inspired by [haacked/dotfiles/tree-me](https://github.com/haacked/dotfiles/blob/
 
 - Organized worktree structure: `~/dev/worktrees/<repo>/<branch>`
 - Simple commands for common worktree operations
+- **Interactive selection menus** for checkout, remove, pr, and mr commands
 - GitHub PR support via `wt pr` command (uses `gh` CLI)
 - GitLab MR support via `wt mr` command (uses `glab` CLI)
 - Shell integration with auto-cd functionality
@@ -73,6 +74,7 @@ This enables:
 # Checkout existing branch in new worktree
 wt checkout feature-branch
 wt co feature-branch              # short alias
+wt co                             # interactive: select from available branches
 
 # Create new branch in worktree (defaults to main/master as base)
 wt create my-feature
@@ -81,10 +83,12 @@ wt create my-feature develop      # specify base branch
 # Checkout GitHub PR in worktree (requires gh CLI)
 wt pr 123                                          # GitHub PR number
 wt pr https://github.com/org/repo/pull/123         # GitHub PR URL
+wt pr                                              # interactive: select from open PRs
 
 # Checkout GitLab MR in worktree (requires glab CLI)
 wt mr 123                                          # GitLab MR number
 wt mr https://gitlab.com/org/repo/-/merge_requests/123  # GitLab MR URL
+wt mr                                              # interactive: select from open MRs
 
 # List all worktrees
 wt list
@@ -93,6 +97,7 @@ wt ls                             # short alias
 # Remove a worktree
 wt remove old-branch
 wt rm old-branch                  # short alias
+wt rm                             # interactive: select from existing worktrees
 
 # Clean up stale worktree administrative files
 wt prune
@@ -106,6 +111,45 @@ wt version
 # Show help
 wt --help
 wt <command> --help
+```
+
+### Interactive Selection
+
+When you run `wt co`, `wt rm`, `wt pr`, or `wt mr` without arguments, you'll get an interactive selection menu:
+
+```bash
+# Interactive branch checkout
+$ wt co
+Use the arrow keys to navigate: ↓ ↑ → ←
+? Select branch to checkout:
+  ▸ feature/add-auth
+    feature/update-docs
+    bugfix/login-issue
+    main
+
+# Interactive worktree removal
+$ wt rm
+Use the arrow keys to navigate: ↓ ↑ → ←
+? Select worktree to remove:
+  ▸ feature/add-auth
+    feature/update-docs
+    bugfix/login-issue
+
+# Interactive PR checkout (requires gh CLI)
+$ wt pr
+Use the arrow keys to navigate: ↓ ↑ → ←
+? Select PR to checkout:
+  ▸ #123: Add authentication feature
+    #124: Update documentation
+    #125: Fix login bug
+
+# Interactive MR checkout (requires glab CLI)
+$ wt mr
+Use the arrow keys to navigate: ↓ ↑ → ←
+? Select MR to checkout:
+  ▸ !456: Add authentication feature
+    !457: Update documentation
+    !458: Fix login bug
 ```
 
 ### Examples
