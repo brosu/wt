@@ -156,26 +156,47 @@ func printCDMarker(path string) {
 }
 
 func getAvailableBranches() ([]string, error) {
-	// Get all branches
+	// Get local and remote branches
 	cmd := exec.Command("git", "branch", "-a", "--format=%(refname:short)")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
 
-	branches := []string{}
+	// Use a map to deduplicate
+	branchMap := make(map[string]bool)
+
 	for _, line := range strings.Split(string(output), "\n") {
 		branch := strings.TrimSpace(line)
-		if branch == "" || strings.HasPrefix(branch, "origin/HEAD") {
+		if branch == "" {
 			continue
 		}
-		// Remove origin/ prefix for remote branches
-		branch = strings.TrimPrefix(branch, "origin/")
-		// Check if this branch doesn't already have a worktree
-		if _, exists := worktreeExists(branch); !exists {
-			branches = append(branches, branch)
+
+		// Skip remote HEAD pointers
+		if strings.HasPrefix(branch, "origin/HEAD") || strings.Contains(branch, "->") {
+			continue
 		}
+
+		// For remote branches, strip the origin/ prefix
+		if strings.HasPrefix(branch, "origin/") {
+			branch = strings.TrimPrefix(branch, "origin/")
+		}
+
+		// Skip if branch name is just "origin" or other remote names
+		if branch == "origin" || branch == "upstream" {
+			continue
+		}
+
+		// Add to map (deduplicates automatically)
+		branchMap[branch] = true
 	}
+
+	// Convert map to slice
+	branches := []string{}
+	for branch := range branchMap {
+		branches = append(branches, branch)
+	}
+
 	return branches, nil
 }
 
