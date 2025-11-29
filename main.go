@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
@@ -154,15 +155,125 @@ func printCDMarker(path string) {
 	fmt.Printf("TREE_ME_CD:%s\n", path)
 }
 
+func getAvailableBranches() ([]string, error) {
+	// Get all branches
+	cmd := exec.Command("git", "branch", "-a", "--format=%(refname:short)")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	branches := []string{}
+	for _, line := range strings.Split(string(output), "\n") {
+		branch := strings.TrimSpace(line)
+		if branch == "" || strings.HasPrefix(branch, "origin/HEAD") {
+			continue
+		}
+		// Remove origin/ prefix for remote branches
+		branch = strings.TrimPrefix(branch, "origin/")
+		// Check if this branch doesn't already have a worktree
+		if _, exists := worktreeExists(branch); !exists {
+			branches = append(branches, branch)
+		}
+	}
+	return branches, nil
+}
+
+func getExistingWorktreeBranches() ([]string, error) {
+	cmd := exec.Command("git", "worktree", "list")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	branches := []string{}
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines[1:] { // Skip first line (main worktree)
+		if line == "" {
+			continue
+		}
+		// Extract branch name from [branch] format
+		if matches := regexp.MustCompile(`\[([^\]]+)\]`).FindStringSubmatch(line); matches != nil {
+			branches = append(branches, matches[1])
+		}
+	}
+	return branches, nil
+}
+
+func getOpenPRs() ([]string, []string, error) {
+	cmd := exec.Command("gh", "pr", "list", "--json", "number,title", "--jq", ".[] | \"\\(.number)\\t\\(.title)\"")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var numbers []string
+	var labels []string
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) == 2 {
+			numbers = append(numbers, parts[0])
+			labels = append(labels, fmt.Sprintf("#%s: %s", parts[0], parts[1]))
+		}
+	}
+	return numbers, labels, nil
+}
+
+func getOpenMRs() ([]string, []string, error) {
+	cmd := exec.Command("glab", "mr", "list")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var numbers []string
+	var labels []string
+	// Parse glab output: !123  title  (branch) ← (target)
+	mrRegex := regexp.MustCompile(`^!(\d+)\s+[^\s]+\s+(.+?)\s+\(`)
+	for _, line := range strings.Split(string(output), "\n") {
+		if matches := mrRegex.FindStringSubmatch(line); matches != nil {
+			numbers = append(numbers, matches[1])
+			labels = append(labels, fmt.Sprintf("!%s: %s", matches[1], strings.TrimSpace(matches[2])))
+		}
+	}
+	return numbers, labels, nil
+}
+
 // Commands
 
 var checkoutCmd = &cobra.Command{
-	Use:     "checkout <branch>",
+	Use:     "checkout [branch]",
 	Aliases: []string{"co"},
 	Short:   "Checkout existing branch in new worktree",
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		branch := args[0]
+		var branch string
+
+		// Interactive selection if no branch provided
+		if len(args) == 0 {
+			branches, err := getAvailableBranches()
+			if err != nil {
+				return fmt.Errorf("failed to get branches: %w", err)
+			}
+			if len(branches) == 0 {
+				return fmt.Errorf("no available branches to checkout")
+			}
+
+			prompt := promptui.Select{
+				Label: "Select branch to checkout",
+				Items: branches,
+			}
+			_, result, err := prompt.Run()
+			if err != nil {
+				return fmt.Errorf("selection cancelled")
+			}
+			branch = result
+		} else {
+			branch = args[0]
+		}
 		repo, err := getRepoName()
 		if err != nil {
 			return err
@@ -236,7 +347,7 @@ var createCmd = &cobra.Command{
 }
 
 var prCmd = &cobra.Command{
-	Use:   "pr <number|url>",
+	Use:   "pr [number|url]",
 	Short: "Checkout GitHub PR in worktree (uses gh CLI)",
 	Long: `Checkout a GitHub Pull Request in a worktree.
 
@@ -244,16 +355,42 @@ Uses the 'gh' CLI to fetch and checkout pull requests.
 For GitLab Merge Requests, use 'wt mr' instead.
 
 Examples:
+  wt pr                                        # Interactive PR selection
   wt pr 123                                    # GitHub PR number
   wt pr https://github.com/org/repo/pull/123   # GitHub PR URL`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return checkoutPROrMR(args[0], RemoteGitHub)
+		var input string
+
+		// Interactive selection if no PR provided
+		if len(args) == 0 {
+			numbers, labels, err := getOpenPRs()
+			if err != nil {
+				return fmt.Errorf("failed to get PRs: %w (is 'gh' CLI installed?)", err)
+			}
+			if len(labels) == 0 {
+				return fmt.Errorf("no open PRs found")
+			}
+
+			prompt := promptui.Select{
+				Label: "Select Pull Request",
+				Items: labels,
+			}
+			idx, _, err := prompt.Run()
+			if err != nil {
+				return fmt.Errorf("selection cancelled")
+			}
+			input = numbers[idx]
+		} else {
+			input = args[0]
+		}
+
+		return checkoutPROrMR(input, RemoteGitHub)
 	},
 }
 
 var mrCmd = &cobra.Command{
-	Use:   "mr <number|url>",
+	Use:   "mr [number|url]",
 	Short: "Checkout GitLab MR in worktree (uses glab CLI)",
 	Long: `Checkout a GitLab Merge Request in a worktree.
 
@@ -261,11 +398,37 @@ Uses the 'glab' CLI to fetch and checkout merge requests.
 For GitHub Pull Requests, use 'wt pr' instead.
 
 Examples:
+  wt mr                                        # Interactive MR selection
   wt mr 123                                    # GitLab MR number
   wt mr https://gitlab.com/org/repo/-/merge_requests/123  # GitLab MR URL`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return checkoutPROrMR(args[0], RemoteGitLab)
+		var input string
+
+		// Interactive selection if no MR provided
+		if len(args) == 0 {
+			numbers, labels, err := getOpenMRs()
+			if err != nil {
+				return fmt.Errorf("failed to get MRs: %w (is 'glab' CLI installed?)", err)
+			}
+			if len(labels) == 0 {
+				return fmt.Errorf("no open MRs found")
+			}
+
+			prompt := promptui.Select{
+				Label: "Select Merge Request",
+				Items: labels,
+			}
+			idx, _, err := prompt.Run()
+			if err != nil {
+				return fmt.Errorf("selection cancelled")
+			}
+			input = numbers[idx]
+		} else {
+			input = args[0]
+		}
+
+		return checkoutPROrMR(input, RemoteGitLab)
 	},
 }
 
@@ -340,12 +503,35 @@ var listCmd = &cobra.Command{
 }
 
 var removeCmd = &cobra.Command{
-	Use:     "remove <branch>",
+	Use:     "remove [branch]",
 	Aliases: []string{"rm"},
 	Short:   "Remove a worktree",
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		branch := args[0]
+		var branch string
+
+		// Interactive selection if no branch provided
+		if len(args) == 0 {
+			branches, err := getExistingWorktreeBranches()
+			if err != nil {
+				return fmt.Errorf("failed to get worktrees: %w", err)
+			}
+			if len(branches) == 0 {
+				return fmt.Errorf("no worktrees to remove")
+			}
+
+			prompt := promptui.Select{
+				Label: "Select worktree to remove",
+				Items: branches,
+			}
+			_, result, err := prompt.Run()
+			if err != nil {
+				return fmt.Errorf("selection cancelled")
+			}
+			branch = result
+		} else {
+			branch = args[0]
+		}
 
 		existingPath, exists := worktreeExists(branch)
 		if !exists {
