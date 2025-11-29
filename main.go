@@ -477,7 +477,10 @@ if [ -n "$ZSH_VERSION" ]; then
             esac
         fi
     }
-    compdef _wt_complete_zsh wt
+    # Only set up completion if compdef is available (after compinit)
+    if (( $+functions[compdef] )); then
+        compdef _wt_complete_zsh wt
+    fi
 fi
 `)
 	},
