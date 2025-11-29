@@ -370,6 +370,27 @@ var removeCmd = &cobra.Command{
 			return fmt.Errorf("no worktree found for branch: %s", branch)
 		}
 
+		// Check if we're currently in the worktree being removed
+		cwd, err := os.Getwd()
+		inRemovedWorktree := err == nil && strings.HasPrefix(cwd, existingPath)
+
+		// Find the main worktree path (for cd after removal)
+		var mainWorktreePath string
+		if inRemovedWorktree {
+			listCmd := exec.Command("git", "worktree", "list")
+			output, err := listCmd.Output()
+			if err == nil {
+				lines := strings.Split(string(output), "\n")
+				if len(lines) > 0 {
+					// First line is always the main worktree
+					fields := strings.Fields(lines[0])
+					if len(fields) > 0 {
+						mainWorktreePath = fields[0]
+					}
+				}
+			}
+		}
+
 		gitCmd := exec.Command("git", "worktree", "remove", existingPath)
 		gitCmd.Stdout = os.Stdout
 		gitCmd.Stderr = os.Stderr
@@ -378,6 +399,12 @@ var removeCmd = &cobra.Command{
 		}
 
 		fmt.Printf("✓ Removed worktree: %s\n", existingPath)
+
+		// If we were in the removed worktree, navigate to main
+		if inRemovedWorktree && mainWorktreePath != "" {
+			printCDMarker(mainWorktreePath)
+		}
+
 		return nil
 	},
 }
