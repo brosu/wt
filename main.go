@@ -178,9 +178,7 @@ func getAvailableBranches() ([]string, error) {
 		}
 
 		// For remote branches, strip the origin/ prefix
-		if strings.HasPrefix(branch, "origin/") {
-			branch = strings.TrimPrefix(branch, "origin/")
-		}
+		branch = strings.TrimPrefix(branch, "origin/")
 
 		// Skip if branch name is just "origin" or other remote names
 		if branch == "origin" || branch == "upstream" {
