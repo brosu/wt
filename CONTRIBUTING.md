@@ -2,15 +2,49 @@
 
 ## Development Workflow
 
-### Working with Feature Branches
+### For External Contributors (Fork-based workflow)
 
-To keep `main` stable and avoid breaking the build:
+If you don't have write access to the repository:
 
-1. **Create a feature branch for your changes:**
+1. **Fork the repository** on GitHub
+
+2. **Clone your fork:**
+   ```bash
+   git clone https://github.com/YOUR-USERNAME/wt.git
+   cd wt
+   ```
+
+3. **Create a feature branch:**
    ```bash
    git checkout -b feature/your-feature-name
-   # or
-   git checkout -b fix/bug-description
+   ```
+
+4. **Make your changes and commit:**
+   ```bash
+   git add .
+   git commit -m "feat: your feature description"
+   ```
+
+5. **Push to your fork:**
+   ```bash
+   git push -u origin feature/your-feature-name
+   ```
+
+6. **Create a Pull Request** from your fork to `timvw/wt:main`
+   - Go to https://github.com/timvw/wt
+   - Click "New Pull Request"
+   - Select "compare across forks"
+   - Choose your fork and branch
+
+7. **Wait for CI to pass** and respond to any review feedback
+
+### For Maintainers (Branch-based workflow)
+
+If you have write access to the repository:
+
+1. **Create a feature branch:**
+   ```bash
+   git checkout -b feature/your-feature-name
    ```
 
 2. **Make your changes and commit:**
