@@ -400,11 +400,13 @@ var shellenvCmd = &cobra.Command{
 	Short: "Output shell function for auto-cd (source this)",
 	Long: `Output shell integration code for automatic directory navigation.
 
-Add this to your ~/.bashrc or ~/.zshrc:
+Add this to the END of your ~/.bashrc or ~/.zshrc:
   source <(wt shellenv)
 
+Note: For zsh, place this AFTER compinit to enable tab completion.
+
 This enables:
-- Automatic cd to worktree after checkout/create/pr commands
+- Automatic cd to worktree after checkout/create/pr/mr commands
 - Tab completion for commands and branch names`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Print(`wt() {
@@ -477,10 +479,7 @@ if [ -n "$ZSH_VERSION" ]; then
             esac
         fi
     }
-    # Only set up completion if compdef is available (after compinit)
-    if (( $+functions[compdef] )); then
-        compdef _wt_complete_zsh wt
-    fi
+    compdef _wt_complete_zsh wt
 fi
 `)
 	},

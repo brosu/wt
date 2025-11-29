@@ -53,14 +53,16 @@ sudo cp bin/wt /usr/local/bin/
 
 ### Shell Integration (Optional but Recommended)
 
-Add this to your `~/.bashrc` or `~/.zshrc`:
+Add this to the **END** of your `~/.bashrc` or `~/.zshrc`:
 
 ```bash
 source <(wt shellenv)
 ```
 
+**Note for zsh users:** Place this after `compinit` in your config file.
+
 This enables:
-- Automatic `cd` to worktree after `checkout`/`create`/`pr` commands
+- Automatic `cd` to worktree after `checkout`/`create`/`pr`/`mr` commands
 - Tab completion for commands and branch names
 
 ## Usage
