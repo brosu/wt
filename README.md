@@ -14,8 +14,8 @@ Inspired by [haacked/dotfiles/tree-me](https://github.com/haacked/dotfiles/blob/
 
 - Organized worktree structure: `~/dev/worktrees/<repo>/<branch>`
 - Simple commands for common worktree operations
-- GitHub PR and GitLab MR checkout support (via `gh` or `glab` CLI)
-- Automatic platform detection based on git remote
+- GitHub PR support via `wt pr` command (uses `gh` CLI)
+- GitLab MR support via `wt mr` command (uses `glab` CLI)
 - Shell integration with auto-cd functionality
 - Tab completion for Bash and Zsh
 
@@ -76,12 +76,13 @@ wt co feature-branch              # short alias
 wt create my-feature
 wt create my-feature develop      # specify base branch
 
-# Checkout GitHub PR or GitLab MR in worktree
-# Automatically detects platform from git remote
-wt pr 123                                          # GitHub PR or GitLab MR
-wt mr 123                                          # Same as above (alias)
+# Checkout GitHub PR in worktree (requires gh CLI)
+wt pr 123                                          # GitHub PR number
 wt pr https://github.com/org/repo/pull/123         # GitHub PR URL
-wt pr https://gitlab.com/org/repo/-/merge_requests/123  # GitLab MR URL
+
+# Checkout GitLab MR in worktree (requires glab CLI)
+wt mr 123                                          # GitLab MR number
+wt mr https://gitlab.com/org/repo/-/merge_requests/123  # GitLab MR URL
 
 # List all worktrees
 wt list
@@ -114,9 +115,11 @@ wt create add-auth-feature
 # Checkout an existing branch
 wt checkout bugfix-login
 
-# Work on a GitHub PR or GitLab MR
+# Work on a GitHub PR
 wt pr 456
-wt mr 789  # Same as 'wt pr 789'
+
+# Work on a GitLab MR
+wt mr 789
 
 # List all your worktrees
 wt list
@@ -155,8 +158,8 @@ just build-all # Cross-compile for multiple platforms
 ## Requirements
 
 - Git (obviously)
-- `gh` CLI (optional, only needed for GitHub PRs via `wt pr` command)
-- `glab` CLI (optional, only needed for GitLab MRs via `wt pr`/`wt mr` commands)
+- `gh` CLI (optional, only needed for `wt pr` command to checkout GitHub PRs)
+- `glab` CLI (optional, only needed for `wt mr` command to checkout GitLab MRs)
 
 ### For Building from Source
 

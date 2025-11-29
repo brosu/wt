@@ -47,6 +47,7 @@ func init() {
 	rootCmd.AddCommand(checkoutCmd)
 	rootCmd.AddCommand(createCmd)
 	rootCmd.AddCommand(prCmd)
+	rootCmd.AddCommand(mrCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(removeCmd)
 	rootCmd.AddCommand(pruneCmd)
@@ -253,80 +254,95 @@ var createCmd = &cobra.Command{
 }
 
 var prCmd = &cobra.Command{
-	Use:     "pr <number|url>",
-	Aliases: []string{"mr"},
-	Short:   "Checkout PR/MR in worktree (uses gh for GitHub, glab for GitLab)",
-	Long: `Checkout a Pull Request (GitHub) or Merge Request (GitLab) in a worktree.
+	Use:   "pr <number|url>",
+	Short: "Checkout GitHub PR in worktree (uses gh CLI)",
+	Long: `Checkout a GitHub Pull Request in a worktree.
 
-Automatically detects whether you're using GitHub or GitLab based on
-the git remote URL and uses the appropriate CLI tool (gh or glab).
+Uses the 'gh' CLI to fetch and checkout pull requests.
+For GitLab Merge Requests, use 'wt mr' instead.
 
 Examples:
-  wt pr 123                                    # PR/MR number
-  wt pr https://github.com/org/repo/pull/123   # GitHub PR URL
-  wt pr https://gitlab.com/org/repo/-/merge_requests/123  # GitLab MR URL
-  wt mr 123                                    # Same as 'wt pr 123'`,
+  wt pr 123                                    # GitHub PR number
+  wt pr https://github.com/org/repo/pull/123   # GitHub PR URL`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		input := args[0]
-		prNumber, err := getPRNumber(input)
-		if err != nil {
-			return err
-		}
-
-		// Detect remote type
-		remoteType := getRemoteType()
-		var refSpec, prefix string
-
-		switch remoteType {
-		case RemoteGitHub:
-			refSpec = fmt.Sprintf("pull/%s/head", prNumber)
-			prefix = "pr"
-			if _, err := exec.LookPath("gh"); err != nil {
-				return fmt.Errorf("'gh' CLI not found. Install it from https://cli.github.com")
-			}
-		case RemoteGitLab:
-			refSpec = fmt.Sprintf("merge-requests/%s/head", prNumber)
-			prefix = "mr"
-			if _, err := exec.LookPath("glab"); err != nil {
-				return fmt.Errorf("'glab' CLI not found. Install it from https://gitlab.com/gitlab-org/cli")
-			}
-		default:
-			return fmt.Errorf("unable to detect remote type (GitHub or GitLab)")
-		}
-
-		repo, err := getRepoName()
-		if err != nil {
-			return err
-		}
-
-		branch := fmt.Sprintf("%s-%s", prefix, prNumber)
-		path := filepath.Join(worktreeRoot, repo, branch)
-
-		// Check if worktree already exists
-		if existingPath, exists := worktreeExists(branch); exists {
-			fmt.Printf("✓ Worktree already exists: %s\n", existingPath)
-			printCDMarker(existingPath)
-			return nil
-		}
-
-		// Fetch the PR/MR
-		fetchCmd := exec.Command("git", "fetch", "origin", fmt.Sprintf("%s:%s", refSpec, branch))
-		fetchCmd.Stderr = os.Stderr
-		_ = fetchCmd.Run() // Ignore errors, branch might already exist
-
-		// Create worktree
-		gitCmd := exec.Command("git", "worktree", "add", path, branch)
-		gitCmd.Stdout = os.Stdout
-		gitCmd.Stderr = os.Stderr
-		if err := gitCmd.Run(); err != nil {
-			return fmt.Errorf("failed to create worktree: %w", err)
-		}
-
-		fmt.Printf("✓ %s #%s checked out at: %s\n", strings.ToUpper(prefix), prNumber, path)
-		printCDMarker(path)
-		return nil
+		return checkoutPROrMR(args[0], RemoteGitHub)
 	},
+}
+
+var mrCmd = &cobra.Command{
+	Use:   "mr <number|url>",
+	Short: "Checkout GitLab MR in worktree (uses glab CLI)",
+	Long: `Checkout a GitLab Merge Request in a worktree.
+
+Uses the 'glab' CLI to fetch and checkout merge requests.
+For GitHub Pull Requests, use 'wt pr' instead.
+
+Examples:
+  wt mr 123                                    # GitLab MR number
+  wt mr https://gitlab.com/org/repo/-/merge_requests/123  # GitLab MR URL`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return checkoutPROrMR(args[0], RemoteGitLab)
+	},
+}
+
+func checkoutPROrMR(input string, remoteType RemoteType) error {
+	prNumber, err := getPRNumber(input)
+	if err != nil {
+		return err
+	}
+
+	var refSpec, prefix string
+
+	switch remoteType {
+	case RemoteGitHub:
+		refSpec = fmt.Sprintf("pull/%s/head", prNumber)
+		prefix = "pr"
+		if _, err := exec.LookPath("gh"); err != nil {
+			return fmt.Errorf("'gh' CLI not found. Install it from https://cli.github.com")
+		}
+	case RemoteGitLab:
+		refSpec = fmt.Sprintf("merge-requests/%s/head", prNumber)
+		prefix = "mr"
+		if _, err := exec.LookPath("glab"); err != nil {
+			return fmt.Errorf("'glab' CLI not found. Install it from https://gitlab.com/gitlab-org/cli")
+		}
+	default:
+		return fmt.Errorf("invalid remote type")
+	}
+
+	repo, err := getRepoName()
+	if err != nil {
+		return err
+	}
+
+	branch := fmt.Sprintf("%s-%s", prefix, prNumber)
+	path := filepath.Join(worktreeRoot, repo, branch)
+
+	// Check if worktree already exists
+	if existingPath, exists := worktreeExists(branch); exists {
+		fmt.Printf("✓ Worktree already exists: %s\n", existingPath)
+		printCDMarker(existingPath)
+		return nil
+	}
+
+	// Fetch the PR/MR
+	fetchCmd := exec.Command("git", "fetch", "origin", fmt.Sprintf("%s:%s", refSpec, branch))
+	fetchCmd.Stderr = os.Stderr
+	_ = fetchCmd.Run() // Ignore errors, branch might already exist
+
+	// Create worktree
+	gitCmd := exec.Command("git", "worktree", "add", path, branch)
+	gitCmd.Stdout = os.Stdout
+	gitCmd.Stderr = os.Stderr
+	if err := gitCmd.Run(); err != nil {
+		return fmt.Errorf("failed to create worktree: %w", err)
+	}
+
+	fmt.Printf("✓ %s #%s checked out at: %s\n", strings.ToUpper(prefix), prNumber, path)
+	printCDMarker(path)
+	return nil
 }
 
 var listCmd = &cobra.Command{
@@ -439,8 +455,8 @@ if [ -n "$ZSH_VERSION" ]; then
             'checkout:Checkout existing branch in new worktree'
             'co:Checkout existing branch in new worktree'
             'create:Create new branch in worktree'
-            'pr:Checkout PR/MR in worktree'
-            'mr:Checkout PR/MR in worktree'
+            'pr:Checkout GitHub PR in worktree'
+            'mr:Checkout GitLab MR in worktree'
             'list:List all worktrees'
             'ls:List all worktrees'
             'remove:Remove a worktree'
