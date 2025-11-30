@@ -35,15 +35,16 @@ func TestE2EAutoCdWithNonInteractiveCommand(t *testing.T) {
 	// Test: Run wt checkout with the shell function in bash
 	script := fmt.Sprintf(`
 export WORKTREE_ROOT=%s
+export PATH=%s:$PATH
 cd %s
-source <(%s shellenv)
+source <(wt shellenv)
 
 # Run wt checkout (non-interactive)
 wt checkout test-branch
 
 # Print current directory
 pwd
-`, worktreeRoot, repoDir, wtBinary)
+`, worktreeRoot, filepath.Dir(wtBinary), repoDir)
 
 	cmd := exec.Command("bash", "-c", script)
 	output, err := cmd.CombinedOutput()
@@ -76,15 +77,16 @@ func TestE2EAutoCdWithCreate(t *testing.T) {
 
 	script := fmt.Sprintf(`
 export WORKTREE_ROOT=%s
+export PATH=%s:$PATH
 cd %s
-source <(%s shellenv)
+source <(wt shellenv)
 
 # Run wt create
 wt create new-feature
 
 # Print current directory
 pwd
-`, worktreeRoot, repoDir, wtBinary)
+`, worktreeRoot, filepath.Dir(wtBinary), repoDir)
 
 	cmd := exec.Command("bash", "-c", script)
 	output, err := cmd.CombinedOutput()
@@ -126,15 +128,16 @@ func TestE2EAutoCdInZsh(t *testing.T) {
 
 	script := fmt.Sprintf(`
 export WORKTREE_ROOT=%s
+export PATH=%s:$PATH
 cd %s
-source <(%s shellenv)
+source <(wt shellenv)
 
 # Run wt checkout
 wt checkout zsh-test-branch
 
 # Print current directory
 pwd
-`, worktreeRoot, repoDir, wtBinary)
+`, worktreeRoot, filepath.Dir(wtBinary), repoDir)
 
 	cmd := exec.Command("zsh", "-c", script)
 	output, err := cmd.CombinedOutput()
@@ -177,8 +180,9 @@ func TestE2ERemoveAndAutoCdToMain(t *testing.T) {
 
 	script := fmt.Sprintf(`
 export WORKTREE_ROOT=%s
+export PATH=%s:$PATH
 cd %s
-source <(%s shellenv)
+source <(wt shellenv)
 
 # Create and cd to worktree
 wt checkout temp-branch
@@ -193,7 +197,7 @@ wt remove temp-branch
 # Print current directory (should be back at main repo)
 echo "After remove:"
 pwd
-`, worktreeRoot, repoDir, wtBinary)
+`, worktreeRoot, filepath.Dir(wtBinary), repoDir)
 
 	cmd := exec.Command("bash", "-c", script)
 	output, err := cmd.CombinedOutput()
