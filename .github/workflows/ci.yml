@@ -192,13 +192,15 @@ jobs:
           export TMPDIR=$(mktemp -d)
           export HOME=$TMPDIR
 
-          # Run e2e tests with verbose output
+          # Run specific e2e tests (not ./... to avoid redundancy)
           if [ "${{ matrix.shell }}" = "bash" ]; then
-            go test -v -run TestE2EAutoCdWithNonInteractiveCommand ./...
-            go test -v -run TestE2EAutoCdWithCreate ./...
+            go test -v -run 'TestE2EAutoCdWithNonInteractiveCommand|TestE2EAutoCdWithCreate' .
           elif [ "${{ matrix.shell }}" = "zsh" ]; then
-            go test -v -run TestE2EAutoCdInZsh ./...
+            go test -v -run TestE2EAutoCdInZsh .
           fi
+
+          # Cleanup isolated environment
+          rm -rf "$TMPDIR"
 
       - name: Test shellenv output
         run: |
@@ -228,14 +230,23 @@ jobs:
 
       - name: Test worktree CRUD operations with auto-cd
         run: |
-          # Create isolated test environment
-          export WORKTREE_ROOT=$(mktemp -d)/worktrees
-          export PATH=$(pwd)/bin:$PATH
+          # Save absolute paths BEFORE changing directories
+          WORK_DIR=$(pwd)
+          WT_BIN="$WORK_DIR/bin/wt"
+          WT_BIN_DIR="$WORK_DIR/bin"
 
-          # Create a test git repo
+          # Create isolated test environment with separate HOME
+          ISOLATED_HOME=$(mktemp -d)
+          WORKTREE_ROOT=$(mktemp -d)/worktrees
           TEST_REPO=$(mktemp -d)/test-repo
+
+          # Generate shellenv script
+          $WT_BIN shellenv > /tmp/wt-shellenv-${{ matrix.shell }}.sh
+
+          # Create test git repo
           mkdir -p $TEST_REPO
           cd $TEST_REPO
+          export HOME=$ISOLATED_HOME
           git init
           git config user.email "test@example.com"
           git config user.name "Test User"
@@ -247,22 +258,16 @@ jobs:
           git commit --allow-empty -m "test commit"
           git checkout main
 
-          # Test with shell integration (the key difference)
+          # Determine shell command
           if [ "${{ matrix.shell }}" = "bash" ]; then
             SHELL_CMD="bash"
           else
             SHELL_CMD="zsh"
           fi
 
-          # Save absolute path to wt binary and its directory
-          WT_BIN="$(pwd)/bin/wt"
-          WT_BIN_DIR="$(pwd)/bin"
-
-          # Generate shellenv script for the shell
-          $WT_BIN shellenv > /tmp/wt-shellenv-${{ matrix.shell }}.sh
-
           # Run test in a subshell with shellenv sourced
           $SHELL_CMD -c "
+            export HOME='$ISOLATED_HOME'
             export WORKTREE_ROOT='$WORKTREE_ROOT'
             export PATH='$WT_BIN_DIR:\$PATH'
             cd '$TEST_REPO'
@@ -315,6 +320,10 @@ jobs:
             echo 'CRUD operations with auto-cd test passed!'
           "
 
+          # Cleanup all temporary directories
+          cd "$WORK_DIR"
+          rm -rf "$ISOLATED_HOME" "$WORKTREE_ROOT" "$TEST_REPO" /tmp/wt-shellenv-${{ matrix.shell }}.sh
+
       - name: Upload shellenv output as artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -322,6 +331,7 @@ jobs:
           name: shellenv-output-${{ matrix.shell }}
           path: shellenv-${{ matrix.shell }}.txt
           retention-days: 7
+          if-no-files-found: ignore
 
       - name: Upload test logs
         if: failure()
