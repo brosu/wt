@@ -220,16 +220,10 @@ func getExistingWorktreeBranches() ([]string, error) {
 	return branches, nil
 }
 
-func getOpenPRs() ([]string, []string, error) {
-	cmd := exec.Command("gh", "pr", "list", "--json", "number,title", "--jq", ".[] | \"\\(.number)\\t\\(.title)\"")
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, nil, err
-	}
-
+func parsePROutput(output string) ([]string, []string) {
 	var numbers []string
 	var labels []string
-	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
 		if line == "" {
 			continue
 		}
@@ -239,7 +233,32 @@ func getOpenPRs() ([]string, []string, error) {
 			labels = append(labels, fmt.Sprintf("#%s: %s", parts[0], parts[1]))
 		}
 	}
+	return numbers, labels
+}
+
+func getOpenPRs() ([]string, []string, error) {
+	cmd := exec.Command("gh", "pr", "list", "--json", "number,title", "--jq", ".[] | \"\\(.number)\\t\\(.title)\"")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	numbers, labels := parsePROutput(string(output))
 	return numbers, labels, nil
+}
+
+func parseMROutput(output string) ([]string, []string) {
+	var numbers []string
+	var labels []string
+	// Parse glab output: !123  title  (branch) ← (target)
+	mrRegex := regexp.MustCompile(`^!(\d+)\s+[^\s]+\s+(.+?)\s+\(`)
+	for _, line := range strings.Split(output, "\n") {
+		if matches := mrRegex.FindStringSubmatch(line); matches != nil {
+			numbers = append(numbers, matches[1])
+			labels = append(labels, fmt.Sprintf("!%s: %s", matches[1], strings.TrimSpace(matches[2])))
+		}
+	}
+	return numbers, labels
 }
 
 func getOpenMRs() ([]string, []string, error) {
@@ -249,16 +268,7 @@ func getOpenMRs() ([]string, []string, error) {
 		return nil, nil, err
 	}
 
-	var numbers []string
-	var labels []string
-	// Parse glab output: !123  title  (branch) ← (target)
-	mrRegex := regexp.MustCompile(`^!(\d+)\s+[^\s]+\s+(.+?)\s+\(`)
-	for _, line := range strings.Split(string(output), "\n") {
-		if matches := mrRegex.FindStringSubmatch(line); matches != nil {
-			numbers = append(numbers, matches[1])
-			labels = append(labels, fmt.Sprintf("!%s: %s", matches[1], strings.TrimSpace(matches[2])))
-		}
-	}
+	numbers, labels := parseMROutput(string(output))
 	return numbers, labels, nil
 }
 
