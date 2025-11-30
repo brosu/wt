@@ -211,3 +211,231 @@ func TestGetAvailableBranches(t *testing.T) {
 		seen[branch] = true
 	}
 }
+
+func TestParsePROutput(t *testing.T) {
+	tests := []struct {
+		name        string
+		output      string
+		wantNumbers []string
+		wantLabels  []string
+	}{
+		{
+			name:        "Empty output",
+			output:      "",
+			wantNumbers: []string{},
+			wantLabels:  []string{},
+		},
+		{
+			name:        "Whitespace only",
+			output:      "   \n  \n  ",
+			wantNumbers: []string{},
+			wantLabels:  []string{},
+		},
+		{
+			name:        "Single PR",
+			output:      "123\tFix authentication bug",
+			wantNumbers: []string{"123"},
+			wantLabels:  []string{"#123: Fix authentication bug"},
+		},
+		{
+			name:        "Multiple PRs",
+			output:      "123\tFix authentication bug\n456\tAdd dark mode\n789\tUpdate dependencies",
+			wantNumbers: []string{"123", "456", "789"},
+			wantLabels:  []string{"#123: Fix authentication bug", "#456: Add dark mode", "#789: Update dependencies"},
+		},
+		{
+			name:        "PR with trailing newline",
+			output:      "123\tFix authentication bug\n",
+			wantNumbers: []string{"123"},
+			wantLabels:  []string{"#123: Fix authentication bug"},
+		},
+		{
+			name:        "PR with multiple trailing newlines",
+			output:      "123\tFix authentication bug\n\n\n",
+			wantNumbers: []string{"123"},
+			wantLabels:  []string{"#123: Fix authentication bug"},
+		},
+		{
+			name:        "Malformed line without tab",
+			output:      "123 Fix authentication bug",
+			wantNumbers: []string{},
+			wantLabels:  []string{},
+		},
+		{
+			name:        "Malformed line with only number",
+			output:      "123",
+			wantNumbers: []string{},
+			wantLabels:  []string{},
+		},
+		{
+			name:        "Mixed valid and invalid lines",
+			output:      "123\tValid PR\ninvalid line\n456\tAnother valid PR",
+			wantNumbers: []string{"123", "456"},
+			wantLabels:  []string{"#123: Valid PR", "#456: Another valid PR"},
+		},
+		{
+			name:        "PR with tab in title",
+			output:      "123\tFix bug\twith details",
+			wantNumbers: []string{"123"},
+			wantLabels:  []string{"#123: Fix bug\twith details"},
+		},
+		{
+			name:        "Empty lines between PRs",
+			output:      "123\tFirst PR\n\n456\tSecond PR",
+			wantNumbers: []string{"123", "456"},
+			wantLabels:  []string{"#123: First PR", "#456: Second PR"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotNumbers, gotLabels := parsePROutput(tt.output)
+
+			if len(gotNumbers) != len(tt.wantNumbers) {
+				t.Errorf("parsePROutput() gotNumbers length = %v, want %v", len(gotNumbers), len(tt.wantNumbers))
+			}
+
+			for i := range gotNumbers {
+				if i >= len(tt.wantNumbers) {
+					break
+				}
+				if gotNumbers[i] != tt.wantNumbers[i] {
+					t.Errorf("parsePROutput() gotNumbers[%d] = %v, want %v", i, gotNumbers[i], tt.wantNumbers[i])
+				}
+			}
+
+			if len(gotLabels) != len(tt.wantLabels) {
+				t.Errorf("parsePROutput() gotLabels length = %v, want %v", len(gotLabels), len(tt.wantLabels))
+			}
+
+			for i := range gotLabels {
+				if i >= len(tt.wantLabels) {
+					break
+				}
+				if gotLabels[i] != tt.wantLabels[i] {
+					t.Errorf("parsePROutput() gotLabels[%d] = %v, want %v", i, gotLabels[i], tt.wantLabels[i])
+				}
+			}
+		})
+	}
+}
+
+func TestParseMROutput(t *testing.T) {
+	tests := []struct {
+		name        string
+		output      string
+		wantNumbers []string
+		wantLabels  []string
+	}{
+		{
+			name:        "Empty output",
+			output:      "",
+			wantNumbers: []string{},
+			wantLabels:  []string{},
+		},
+		{
+			name:        "Single MR",
+			output:      "!123  OPEN  Fix authentication bug  (feature-branch) ← (main)",
+			wantNumbers: []string{"123"},
+			wantLabels:  []string{"!123: Fix authentication bug"},
+		},
+		{
+			name: "Multiple MRs",
+			output: `!123  OPEN  Fix authentication bug  (feature-branch) ← (main)
+!456  OPEN  Add dark mode  (dark-mode) ← (main)
+!789  OPEN  Update dependencies  (deps) ← (main)`,
+			wantNumbers: []string{"123", "456", "789"},
+			wantLabels:  []string{"!123: Fix authentication bug", "!456: Add dark mode", "!789: Update dependencies"},
+		},
+		{
+			name:        "MR with MERGED status",
+			output:      "!123  MERGED  Fix authentication bug  (feature-branch) ← (main)",
+			wantNumbers: []string{"123"},
+			wantLabels:  []string{"!123: Fix authentication bug"},
+		},
+		{
+			name:        "MR with CLOSED status",
+			output:      "!123  CLOSED  Fix authentication bug  (feature-branch) ← (main)",
+			wantNumbers: []string{"123"},
+			wantLabels:  []string{"!123: Fix authentication bug"},
+		},
+		{
+			name:        "Malformed line without MR number",
+			output:      "OPEN  Fix authentication bug  (feature-branch) ← (main)",
+			wantNumbers: []string{},
+			wantLabels:  []string{},
+		},
+		{
+			name:        "Malformed line without parenthesis",
+			output:      "!123  OPEN  Fix authentication bug",
+			wantNumbers: []string{},
+			wantLabels:  []string{},
+		},
+		{
+			name:        "Line not starting with !",
+			output:      "123  OPEN  Fix authentication bug  (feature-branch) ← (main)",
+			wantNumbers: []string{},
+			wantLabels:  []string{},
+		},
+		{
+			name: "Mixed valid and invalid lines",
+			output: `!123  OPEN  Valid MR  (branch) ← (main)
+invalid line without proper format
+!456  OPEN  Another valid MR  (branch2) ← (main)`,
+			wantNumbers: []string{"123", "456"},
+			wantLabels:  []string{"!123: Valid MR", "!456: Another valid MR"},
+		},
+		{
+			name:        "MR with extra whitespace in title",
+			output:      "!123  OPEN    Title with spaces    (branch) ← (main)",
+			wantNumbers: []string{"123"},
+			wantLabels:  []string{"!123: Title with spaces"},
+		},
+		{
+			name: "Empty lines between MRs",
+			output: `!123  OPEN  First MR  (branch1) ← (main)
+
+!456  OPEN  Second MR  (branch2) ← (main)`,
+			wantNumbers: []string{"123", "456"},
+			wantLabels:  []string{"!123: First MR", "!456: Second MR"},
+		},
+		{
+			name:        "MR with trailing newline",
+			output:      "!123  OPEN  Fix bug  (branch) ← (main)\n",
+			wantNumbers: []string{"123"},
+			wantLabels:  []string{"!123: Fix bug"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotNumbers, gotLabels := parseMROutput(tt.output)
+
+			if len(gotNumbers) != len(tt.wantNumbers) {
+				t.Errorf("parseMROutput() gotNumbers length = %v, want %v", len(gotNumbers), len(tt.wantNumbers))
+			}
+
+			for i := range gotNumbers {
+				if i >= len(tt.wantNumbers) {
+					break
+				}
+				if gotNumbers[i] != tt.wantNumbers[i] {
+					t.Errorf("parseMROutput() gotNumbers[%d] = %v, want %v", i, gotNumbers[i], tt.wantNumbers[i])
+				}
+			}
+
+			if len(gotLabels) != len(tt.wantLabels) {
+				t.Errorf("parseMROutput() gotLabels length = %v, want %v", len(gotLabels), len(tt.wantLabels))
+			}
+
+			for i := range gotLabels {
+				if i >= len(tt.wantLabels) {
+					break
+				}
+				if gotLabels[i] != tt.wantLabels[i] {
+					t.Errorf("parseMROutput() gotLabels[%d] = %v, want %v", i, gotLabels[i], tt.wantLabels[i])
+				}
+			}
+		})
+	}
+}
