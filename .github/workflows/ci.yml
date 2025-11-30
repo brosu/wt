@@ -265,11 +265,14 @@ jobs:
             SHELL_CMD="zsh"
           fi
 
+          # Save the current PATH so git is available in the subshell
+          CURRENT_PATH="$PATH"
+
           # Run test in a subshell with shellenv sourced
           $SHELL_CMD -c "
             export HOME='$ISOLATED_HOME'
             export WORKTREE_ROOT='$WORKTREE_ROOT'
-            export PATH='$WT_BIN_DIR:\$PATH'
+            export PATH='$WT_BIN_DIR:$CURRENT_PATH'
             cd '$TEST_REPO'
 
             # Debug: Check environment and git status
