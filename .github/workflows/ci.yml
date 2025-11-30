@@ -464,7 +464,7 @@ jobs:
 
             # Load shellenv
             $env:WORKTREE_ROOT = $WORKTREE_ROOT
-            Invoke-Expression (& $WT_BIN shellenv)
+            Invoke-Expression ((& $WT_BIN shellenv) -join "`n")
 
             # Test checkout
             Write-Output "Testing: wt checkout test-branch"
