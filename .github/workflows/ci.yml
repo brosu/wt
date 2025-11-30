@@ -271,6 +271,14 @@ jobs:
             export WORKTREE_ROOT='$WORKTREE_ROOT'
             export PATH='$WT_BIN_DIR:\$PATH'
             cd '$TEST_REPO'
+
+            # Verify we're in a git repo
+            if [ ! -d .git ]; then
+              echo \"ERROR: .git directory not found in \$(pwd)\"
+              ls -la
+              exit 1
+            fi
+
             source /tmp/wt-shellenv-${{ matrix.shell }}.sh
 
             echo 'Testing: wt checkout test-branch'
