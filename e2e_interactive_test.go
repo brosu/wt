@@ -80,24 +80,6 @@ func (ps *ptyShell) readLoop() {
 	}
 }
 
-// waitForPrompt waits for the shell prompt to appear in the output
-func (ps *ptyShell) waitForPrompt(ctx context.Context, prompt string) error {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for prompt: %w", ctx.Err())
-		case <-ticker.C:
-			output := ps.output.String()
-			if strings.Contains(output, prompt) {
-				return nil
-			}
-		}
-	}
-}
-
 // waitForText waits for specific text to appear in the output
 func (ps *ptyShell) waitForText(ctx context.Context, text string) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
