@@ -723,14 +723,22 @@ Register-ArgumentCompleter -CommandName wt -ScriptBlock {
 
 		// Bash/Zsh integration for Unix systems
 		fmt.Print(`wt() {
-    # All commands (including interactive) need output capture for auto-cd
-    local output
-    output=$(command wt "$@")
-    local exit_code=$?
-    echo "$output"
-    if [ $exit_code -eq 0 ]; then
-        local cd_path=$(echo "$output" | grep "^TREE_ME_CD:" | cut -d: -f2-)
-        [ -n "$cd_path" ] && cd "$cd_path"
+    # Use script(1) to provide a PTY for interactive commands (e.g., promptui menus)
+    # Command substitution $(command wt) doesn't allocate a TTY, which breaks interactive prompts
+    local log_file exit_code cd_path
+    log_file=$(mktemp -t wt.XXXXXX)
+
+    # script -q runs the command in a PTY and logs output
+    script -q "$log_file" /bin/sh -c 'command wt "$@"' wt "$@"
+    exit_code=$?
+
+    # Extract the TREE_ME_CD marker for auto-cd
+    cd_path=$(grep '^TREE_ME_CD:' "$log_file" | tail -1 | cut -d: -f2-)
+    rm -f "$log_file"
+    cd_path=${cd_path%$'\r'}
+
+    if [ $exit_code -eq 0 ] && [ -n "$cd_path" ]; then
+        cd "$cd_path"
     fi
     return $exit_code
 }
