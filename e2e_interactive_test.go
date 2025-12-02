@@ -24,6 +24,24 @@ type ptyShell struct {
 	t      *testing.T
 }
 
+// getInitWaitTime returns appropriate wait time for shell initialization
+// Longer in CI due to race detector and slower environments
+func getInitWaitTime() time.Duration {
+	if os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
+		return 5 * time.Second
+	}
+	return 2 * time.Second
+}
+
+// getContextTimeout returns appropriate timeout for waiting on shell output
+// Longer in CI due to race detector and slower environments
+func getContextTimeout() time.Duration {
+	if os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
+		return 10 * time.Second
+	}
+	return 5 * time.Second
+}
+
 // newPtyZsh spawns zsh in a pty with the given rc content
 func newPtyZsh(t *testing.T, rcContent string) (*ptyShell, error) {
 	t.Helper()
@@ -165,7 +183,24 @@ func (ps *ptyShell) send(s string) error {
 // close terminates the shell and cleans up resources
 func (ps *ptyShell) close() {
 	ps.send("exit\n")
-	ps.cmd.Wait()
+
+	// Wait for process with timeout to avoid hanging forever
+	done := make(chan struct{})
+	go func() {
+		ps.cmd.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Process exited normally
+	case <-time.After(2 * time.Second):
+		// Timeout - force kill
+		ps.t.Logf("Shell process didn't exit within timeout, force killing")
+		ps.cmd.Process.Kill()
+		<-done
+	}
+
 	ps.pty.Close()
 	<-ps.done
 }
@@ -223,11 +258,11 @@ echo "Built wt binary: %s"
 	defer ps.close()
 
 	// Wait a bit for shell to initialize
-	time.Sleep(2 * time.Second)
+	time.Sleep(getInitWaitTime())
 	t.Logf("Initial output from zsh:\n%s", ps.getOutput())
 
 	// Wait for the shellenv loaded marker
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), getContextTimeout())
 	defer cancel()
 	if err := ps.waitForText(ctx, "=== WT SHELLENV LOADED ==="); err != nil {
 		t.Fatalf("Failed to load shellenv: %v\nOutput:\n%s", err, ps.getOutput())
@@ -310,11 +345,11 @@ echo "Built wt binary: %s"
 	defer ps.close()
 
 	// Wait a bit for shell to initialize
-	time.Sleep(2 * time.Second)
+	time.Sleep(getInitWaitTime())
 	t.Logf("Initial output from zsh:\n%s", ps.getOutput())
 
 	// Wait for the shellenv loaded marker
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), getContextTimeout())
 	defer cancel()
 	if err := ps.waitForText(ctx, "=== WT SHELLENV LOADED ==="); err != nil {
 		t.Fatalf("Failed to load shellenv: %v\nOutput:\n%s", err, ps.getOutput())
@@ -331,7 +366,7 @@ echo "Built wt binary: %s"
 	}
 
 	// Wait for the success message
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), getContextTimeout())
 	defer cancel2()
 
 	err = ps.waitForText(ctx2, "Worktree created at:")
@@ -398,11 +433,11 @@ echo "Built wt binary: %s"
 	defer ps.close()
 
 	// Wait a bit for shell to initialize
-	time.Sleep(2 * time.Second)
+	time.Sleep(getInitWaitTime())
 	t.Logf("Initial output from bash:\n%s", ps.getOutput())
 
 	// Wait for the shellenv loaded marker
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), getContextTimeout())
 	defer cancel()
 	if err := ps.waitForText(ctx, "=== WT SHELLENV LOADED ==="); err != nil {
 		t.Fatalf("Failed to load shellenv: %v\nOutput:\n%s", err, ps.getOutput())
@@ -484,11 +519,11 @@ echo "Built wt binary: %s"
 	defer ps.close()
 
 	// Wait a bit for shell to initialize
-	time.Sleep(2 * time.Second)
+	time.Sleep(getInitWaitTime())
 	t.Logf("Initial output from bash:\n%s", ps.getOutput())
 
 	// Wait for the shellenv loaded marker
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), getContextTimeout())
 	defer cancel()
 	if err := ps.waitForText(ctx, "=== WT SHELLENV LOADED ==="); err != nil {
 		t.Fatalf("Failed to load shellenv: %v\nOutput:\n%s", err, ps.getOutput())
@@ -505,7 +540,7 @@ echo "Built wt binary: %s"
 	}
 
 	// Wait for the success message
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), getContextTimeout())
 	defer cancel2()
 
 	err = ps.waitForText(ctx2, "Worktree created at:")
