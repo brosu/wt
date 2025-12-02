@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,11 +18,12 @@ import (
 
 // ptyShell represents a pseudo-terminal running a shell
 type ptyShell struct {
-	pty    *os.File
-	cmd    *exec.Cmd
-	output bytes.Buffer
-	done   chan struct{}
-	t      *testing.T
+	pty       *os.File
+	cmd       *exec.Cmd
+	output    bytes.Buffer
+	outputMux sync.Mutex // Protects output buffer access
+	done      chan struct{}
+	t         *testing.T
 }
 
 // getInitWaitTime returns appropriate wait time for shell initialization
@@ -124,7 +126,9 @@ func (ps *ptyShell) readLoop() {
 	for {
 		n, err := ps.pty.Read(buf)
 		if n > 0 {
+			ps.outputMux.Lock()
 			ps.output.Write(buf[:n])
+			ps.outputMux.Unlock()
 		}
 		if err != nil {
 			if err != io.EOF {
@@ -140,18 +144,26 @@ func (ps *ptyShell) waitForText(ctx context.Context, text string) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
+	ps.outputMux.Lock()
 	initialLen := ps.output.Len()
+	ps.outputMux.Unlock()
+
 	lastLen := initialLen
 	stableCount := 0
 
 	for {
 		select {
 		case <-ctx.Done():
+			ps.outputMux.Lock()
+			outputStr := ps.output.String()
+			ps.outputMux.Unlock()
 			return fmt.Errorf("timeout waiting for text '%s': %w\nGot output:\n%s",
-				text, ctx.Err(), ps.output.String())
+				text, ctx.Err(), outputStr)
 		case <-ticker.C:
+			ps.outputMux.Lock()
 			output := ps.output.String()
 			currentLen := ps.output.Len()
+			ps.outputMux.Unlock()
 
 			// Check if we found the text
 			if strings.Contains(output, text) {
@@ -207,7 +219,16 @@ func (ps *ptyShell) close() {
 
 // getOutput returns the current accumulated output
 func (ps *ptyShell) getOutput() string {
+	ps.outputMux.Lock()
+	defer ps.outputMux.Unlock()
 	return ps.output.String()
+}
+
+// resetOutput clears the output buffer (thread-safe)
+func (ps *ptyShell) resetOutput() {
+	ps.outputMux.Lock()
+	defer ps.outputMux.Unlock()
+	ps.output.Reset()
 }
 
 // TestInteractiveCheckoutWithoutArgs demonstrates the hang when running 'wt co'
@@ -271,7 +292,7 @@ echo "Built wt binary: %s"
 	t.Log("Shellenv loaded, sending 'wt co' command...")
 
 	// Clear the buffer to focus on the command output
-	ps.output.Reset()
+	ps.resetOutput()
 
 	// Send the interactive command
 	if err := ps.send("wt co\n"); err != nil {
@@ -358,7 +379,7 @@ echo "Built wt binary: %s"
 	t.Log("Shellenv loaded, sending 'wt co feature-explicit' command...")
 
 	// Clear the buffer to focus on the command output
-	ps.output.Reset()
+	ps.resetOutput()
 
 	// Send the non-interactive command with explicit branch name
 	if err := ps.send("wt co feature-explicit\n"); err != nil {
@@ -446,7 +467,7 @@ echo "Built wt binary: %s"
 	t.Log("Shellenv loaded, sending 'wt co' command...")
 
 	// Clear the buffer to focus on the command output
-	ps.output.Reset()
+	ps.resetOutput()
 
 	// Send the interactive command
 	if err := ps.send("wt co\n"); err != nil {
@@ -532,7 +553,7 @@ echo "Built wt binary: %s"
 	t.Log("Shellenv loaded, sending 'wt co feature-explicit' command...")
 
 	// Clear the buffer to focus on the command output
-	ps.output.Reset()
+	ps.resetOutput()
 
 	// Send the non-interactive command with explicit branch name
 	if err := ps.send("wt co feature-explicit\n"); err != nil {
