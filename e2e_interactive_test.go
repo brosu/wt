@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/creack/pty"
+	"github.com/aymanbagabas/go-pty"
 )
 
 // ptyShell represents a pseudo-terminal running a shell
 type ptyShell struct {
-	pty       *os.File
-	cmd       *exec.Cmd
+	pty       pty.Pty
+	cmd       *pty.Cmd
 	output    bytes.Buffer
 	outputMux sync.Mutex // Protects output buffer access
 	done      chan struct{}
@@ -55,22 +55,28 @@ func newPtyZsh(t *testing.T, rcContent string) (*ptyShell, error) {
 		return nil, fmt.Errorf("failed to write .zshrc: %w", err)
 	}
 
+	// Create a new PTY
+	p, err := pty.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pty: %w", err)
+	}
+
 	// Spawn zsh with custom ZDOTDIR
-	cmd := exec.Command("zsh", "-i")
+	cmd := p.Command("zsh", "-i")
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("ZDOTDIR=%s", tmpDir),
 		"HOME="+tmpDir,
 		"TERM=xterm-256color",
 	)
 
-	// Start the command with a PTY
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		p.Close()
 		return nil, fmt.Errorf("failed to start zsh with pty: %w", err)
 	}
 
 	ps := &ptyShell{
-		pty:  ptmx,
+		pty:  p,
 		cmd:  cmd,
 		done: make(chan struct{}),
 		t:    t,
@@ -93,21 +99,27 @@ func newPtyBash(t *testing.T, rcContent string) (*ptyShell, error) {
 		return nil, fmt.Errorf("failed to write .bashrc: %w", err)
 	}
 
+	// Create a new PTY
+	p, err := pty.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pty: %w", err)
+	}
+
 	// Spawn bash with custom --init-file (similar to --rcfile but for interactive shells)
-	cmd := exec.Command("bash", "--noprofile", "--init-file", rcFile)
+	cmd := p.Command("bash", "--noprofile", "--init-file", rcFile)
 	cmd.Env = append(os.Environ(),
 		"HOME="+tmpDir,
 		"TERM=xterm-256color",
 	)
 
-	// Start the command with a PTY
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		p.Close()
 		return nil, fmt.Errorf("failed to start bash with pty: %w", err)
 	}
 
 	ps := &ptyShell{
-		pty:  ptmx,
+		pty:  p,
 		cmd:  cmd,
 		done: make(chan struct{}),
 		t:    t,
