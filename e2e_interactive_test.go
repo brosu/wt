@@ -62,6 +62,43 @@ func newPtyZsh(t *testing.T, rcContent string) (*ptyShell, error) {
 	return ps, nil
 }
 
+// newPtyBash spawns bash in a pty with the given rc content
+func newPtyBash(t *testing.T, rcContent string) (*ptyShell, error) {
+	t.Helper()
+
+	// Create a temporary directory for bash config
+	tmpDir := t.TempDir()
+	rcFile := filepath.Join(tmpDir, ".bashrc")
+	if err := os.WriteFile(rcFile, []byte(rcContent), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write .bashrc: %w", err)
+	}
+
+	// Spawn bash with custom --init-file (similar to --rcfile but for interactive shells)
+	cmd := exec.Command("bash", "--noprofile", "--init-file", rcFile)
+	cmd.Env = append(os.Environ(),
+		"HOME="+tmpDir,
+		"TERM=xterm-256color",
+	)
+
+	// Start the command with a PTY
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start bash with pty: %w", err)
+	}
+
+	ps := &ptyShell{
+		pty:  ptmx,
+		cmd:  cmd,
+		done: make(chan struct{}),
+		t:    t,
+	}
+
+	// Start reading output in a goroutine
+	go ps.readLoop()
+
+	return ps, nil
+}
+
 // readLoop continuously reads from the pty and appends to the output buffer
 func (ps *ptyShell) readLoop() {
 	defer close(ps.done)
@@ -275,6 +312,180 @@ echo "Built wt binary: %s"
 	// Wait a bit for shell to initialize
 	time.Sleep(2 * time.Second)
 	t.Logf("Initial output from zsh:\n%s", ps.getOutput())
+
+	// Wait for the shellenv loaded marker
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := ps.waitForText(ctx, "=== WT SHELLENV LOADED ==="); err != nil {
+		t.Fatalf("Failed to load shellenv: %v\nOutput:\n%s", err, ps.getOutput())
+	}
+
+	t.Log("Shellenv loaded, sending 'wt co feature-explicit' command...")
+
+	// Clear the buffer to focus on the command output
+	ps.output.Reset()
+
+	// Send the non-interactive command with explicit branch name
+	if err := ps.send("wt co feature-explicit\n"); err != nil {
+		t.Fatalf("Failed to send command: %v", err)
+	}
+
+	// Wait for the success message
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel2()
+
+	err = ps.waitForText(ctx2, "Worktree created at:")
+	if err != nil {
+		t.Fatalf("Non-interactive checkout failed: %v\nOutput:\n%s", err, ps.getOutput())
+	}
+
+	// Also verify the TREE_ME_CD marker is present
+	output := ps.getOutput()
+	expectedPath := filepath.Join(worktreeRoot, "test-repo", "feature-explicit")
+	if !strings.Contains(output, "TREE_ME_CD:"+expectedPath) {
+		t.Errorf("TREE_ME_CD marker not found in output.\nExpected path: %s\nOutput:\n%s",
+			expectedPath, output)
+	}
+
+	t.Log("SUCCESS: Non-interactive checkout with explicit branch name works correctly")
+}
+
+// TestInteractiveCheckoutWithoutArgsBash demonstrates the v0.1.12 hang bug when running 'wt co'
+// without providing a branch name in bash. This test should PASS after the fix.
+func TestInteractiveCheckoutWithoutArgsBash(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping interactive e2e test in short mode")
+	}
+
+	// Check if bash is available
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not available, skipping bash interactive test")
+	}
+
+	tmpDir := t.TempDir()
+	repoDir := filepath.Join(tmpDir, "test-repo")
+	worktreeRoot := filepath.Join(tmpDir, "worktrees")
+
+	// Setup test repo
+	setupTestRepo(t, repoDir)
+	wtBinary := buildWtBinary(t, tmpDir)
+
+	// Create test branches
+	runGitCommand(t, repoDir, "checkout", "-b", "feature-1")
+	runGitCommand(t, repoDir, "commit", "--allow-empty", "-m", "test commit 1")
+	runGitCommand(t, repoDir, "checkout", "main")
+	runGitCommand(t, repoDir, "checkout", "-b", "feature-2")
+	runGitCommand(t, repoDir, "commit", "--allow-empty", "-m", "test commit 2")
+	runGitCommand(t, repoDir, "checkout", "main")
+
+	// Create bash rc that sources wt shellenv and cd's to repo
+	// Use explicit path to the built binary to avoid using system wt
+	rcContent := fmt.Sprintf(`
+export WORKTREE_ROOT=%s
+export PATH=%s:$PATH
+cd %s
+source <(%s shellenv)
+echo "=== WT SHELLENV LOADED ==="
+type wt | head -n 1
+echo "Built wt binary: %s"
+`, worktreeRoot, filepath.Dir(wtBinary), repoDir, wtBinary, wtBinary)
+
+	// Launch bash with our config
+	ps, err := newPtyBash(t, rcContent)
+	if err != nil {
+		t.Fatalf("Failed to create pty bash: %v", err)
+	}
+	defer ps.close()
+
+	// Wait a bit for shell to initialize
+	time.Sleep(2 * time.Second)
+	t.Logf("Initial output from bash:\n%s", ps.getOutput())
+
+	// Wait for the shellenv loaded marker
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := ps.waitForText(ctx, "=== WT SHELLENV LOADED ==="); err != nil {
+		t.Fatalf("Failed to load shellenv: %v\nOutput:\n%s", err, ps.getOutput())
+	}
+
+	t.Log("Shellenv loaded, sending 'wt co' command...")
+
+	// Clear the buffer to focus on the command output
+	ps.output.Reset()
+
+	// Send the interactive command
+	if err := ps.send("wt co\n"); err != nil {
+		t.Fatalf("Failed to send command: %v", err)
+	}
+
+	// Try to wait for the branch selection prompt to appear
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel2()
+
+	err = ps.waitForText(ctx2, "Select branch to checkout")
+	if err != nil {
+		// This is the EXPECTED behavior with the bug - the prompt never appears
+		t.Logf("BUG CONFIRMED: Interactive prompt did not appear within timeout")
+		t.Logf("Output captured:\n%s", ps.getOutput())
+		t.Fatalf("Interactive checkout hung: %v", err)
+	}
+
+	// If we reach here, the bug is fixed!
+	t.Log("SUCCESS: Interactive prompt appeared!")
+	t.Log("The bug appears to be fixed.")
+
+	// Cancel the prompt and exit cleanly
+	ps.send("\x03") // Ctrl-C to cancel the prompt
+	time.Sleep(500 * time.Millisecond)
+}
+
+// TestNonInteractiveCheckoutWithArgsBash demonstrates that checkout works when
+// providing an explicit branch name in bash. This test should PASS.
+func TestNonInteractiveCheckoutWithArgsBash(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping interactive e2e test in short mode")
+	}
+
+	// Check if bash is available
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not available, skipping bash interactive test")
+	}
+
+	tmpDir := t.TempDir()
+	repoDir := filepath.Join(tmpDir, "test-repo")
+	worktreeRoot := filepath.Join(tmpDir, "worktrees")
+
+	// Setup test repo
+	setupTestRepo(t, repoDir)
+	wtBinary := buildWtBinary(t, tmpDir)
+
+	// Create a test branch
+	runGitCommand(t, repoDir, "checkout", "-b", "feature-explicit")
+	runGitCommand(t, repoDir, "commit", "--allow-empty", "-m", "test commit")
+	runGitCommand(t, repoDir, "checkout", "main")
+
+	// Create bash rc that sources wt shellenv and cd's to repo
+	// Use explicit path to the built binary to avoid using system wt
+	rcContent := fmt.Sprintf(`
+export WORKTREE_ROOT=%s
+export PATH=%s:$PATH
+cd %s
+source <(%s shellenv)
+echo "=== WT SHELLENV LOADED ==="
+type wt | head -n 1
+echo "Built wt binary: %s"
+`, worktreeRoot, filepath.Dir(wtBinary), repoDir, wtBinary, wtBinary)
+
+	// Launch bash with our config
+	ps, err := newPtyBash(t, rcContent)
+	if err != nil {
+		t.Fatalf("Failed to create pty bash: %v", err)
+	}
+	defer ps.close()
+
+	// Wait a bit for shell to initialize
+	time.Sleep(2 * time.Second)
+	t.Logf("Initial output from bash:\n%s", ps.getOutput())
 
 	// Wait for the shellenv loaded marker
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
