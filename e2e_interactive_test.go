@@ -235,11 +235,15 @@ echo "Built wt binary: %s"
 		t.Logf("BUG CONFIRMED: Interactive prompt did not appear within timeout")
 		t.Logf("Output captured:\n%s", ps.getOutput())
 		t.Fatalf("Interactive checkout hung: %v", err)
-	} else {
-		// If we reach here, the bug is fixed!
-		t.Log("SUCCESS: Interactive prompt appeared!")
-		t.Log("The bug appears to be fixed.")
 	}
+
+	// If we reach here, the bug is fixed!
+	t.Log("SUCCESS: Interactive prompt appeared!")
+	t.Log("The bug appears to be fixed.")
+
+	// Cancel the prompt and exit cleanly
+	ps.send("\x03") // Ctrl-C to cancel the prompt
+	time.Sleep(500 * time.Millisecond)
 }
 
 // TestNonInteractiveCheckoutWithArgs demonstrates that checkout works when
