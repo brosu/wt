@@ -18,6 +18,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
+        continue-on-error: true
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
@@ -26,7 +27,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -66,6 +67,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
+        continue-on-error: true
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
@@ -74,7 +76,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -101,6 +103,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
+        continue-on-error: true
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
@@ -109,7 +112,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -128,6 +131,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
+        continue-on-error: true
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
@@ -136,7 +140,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -166,6 +170,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
+        continue-on-error: true
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
@@ -174,7 +179,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -370,6 +375,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
+        continue-on-error: true
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
@@ -378,7 +384,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -563,6 +569,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
+        continue-on-error: true
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
@@ -571,7 +578,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
