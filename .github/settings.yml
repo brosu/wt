@@ -42,6 +42,12 @@ branches:
           - "Lint"
           - "Unit Tests"
           - "Build and Cross-Compile"
+          - "E2E Tests (macOS) (bash)"
+          - "E2E Tests (macOS) (zsh)"
+          - "E2E Tests (Linux) (bash)"
+          - "E2E Tests (Linux) (zsh)"
+          - "E2E Tests (Windows) (powershell)"
+          - "E2E Tests (Windows) (pwsh)"
 
       enforce_admins: false
 
