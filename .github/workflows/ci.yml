@@ -19,6 +19,9 @@ jobs:
           bot-app-id: ${{ secrets.BOT_APP_ID }}
           bot-private-key: ${{ secrets.BOT_PRIVATE_KEY }}
 
+      - name: Verify dependencies
+        run: go mod verify
+
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v4
         with:
@@ -34,9 +37,6 @@ jobs:
         with:
           bot-app-id: ${{ secrets.BOT_APP_ID }}
           bot-private-key: ${{ secrets.BOT_PRIVATE_KEY }}
-
-      - name: Verify dependencies
-        run: go mod verify
 
       - name: Run unit tests
         run: go test -short -v -race -coverprofile=coverage.out ./...
