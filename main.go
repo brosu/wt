@@ -55,6 +55,7 @@ func init() {
 	rootCmd.AddCommand(pruneCmd)
 	rootCmd.AddCommand(shellenvCmd)
 	rootCmd.AddCommand(versionCmd)
+	removeCmd.Flags().BoolVarP(&removeForce, "force", "f", false, "Force removal even if worktree has modifications")
 }
 
 // Helper functions
@@ -562,6 +563,8 @@ var listCmd = &cobra.Command{
 	},
 }
 
+var removeForce bool
+
 var removeCmd = &cobra.Command{
 	Use:     "remove [branch]",
 	Aliases: []string{"rm"},
@@ -619,7 +622,13 @@ var removeCmd = &cobra.Command{
 			}
 		}
 
-		gitCmd := exec.Command("git", "worktree", "remove", existingPath)
+		gitArgs := []string{"worktree", "remove"}
+		if removeForce {
+			gitArgs = append(gitArgs, "--force")
+		}
+		gitArgs = append(gitArgs, existingPath)
+
+		gitCmd := exec.Command("git", gitArgs...)
 		gitCmd.Stdout = os.Stdout
 		gitCmd.Stderr = os.Stderr
 		if err := gitCmd.Run(); err != nil {
