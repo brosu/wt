@@ -41,8 +41,47 @@ jobs:
           version: latest
 
   test:
-    name: Unit Tests
+    name: Test (${{ matrix.go }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.24', '1.25']
+
+    steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        continue-on-error: true
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.generate-token.outputs.token || github.token }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+
+      - name: Run unit tests
+        run: go test -short -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: timvw/wt
+          files: ./coverage.out
+          fail_ci_if_error: false
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
 
     steps:
       - name: Generate GitHub App token
@@ -64,19 +103,11 @@ jobs:
           go-version: '1.25'
           cache: true
 
-      - name: Run unit tests
-        run: go test -short -v -race -coverprofile=coverage.out ./...
+      - name: Build
+        run: go build ./...
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          slug: timvw/wt
-          files: ./coverage.out
-          fail_ci_if_error: false
-
-  build:
-    name: Build and Cross-Compile
+  cross-compile:
+    name: Cross Compile
     runs-on: ubuntu-latest
     needs: [lint, test]
 
@@ -142,7 +173,7 @@ jobs:
   e2e-macos:
     name: E2E Tests (macOS)
     runs-on: macos-latest
-    needs: build
+    needs: cross-compile
     strategy:
       matrix:
         shell: ['bash', 'zsh']
@@ -347,7 +378,7 @@ jobs:
   e2e-linux:
     name: E2E Tests (Linux)
     runs-on: ubuntu-latest
-    needs: build
+    needs: cross-compile
     strategy:
       fail-fast: false
       matrix:
@@ -545,7 +576,7 @@ jobs:
   e2e-windows:
     name: E2E Tests (Windows)
     runs-on: windows-latest
-    needs: build
+    needs: cross-compile
     strategy:
       matrix:
         shell: ['powershell', 'pwsh']
