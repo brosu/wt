@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,6 +172,52 @@ func ensureWorktreePath(repo, branch string) (string, error) {
 	}
 
 	return filepath.Join(targetRoot, branch), nil
+}
+
+func cleanupWorktreePath(worktreePath string) error {
+	if worktreePath == "" {
+		return nil
+	}
+
+	if err := os.RemoveAll(worktreePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove worktree directory %s: %w", worktreePath, err)
+	}
+
+	absRoot, err := filepath.Abs(worktreeRoot)
+	if err != nil {
+		return nil
+	}
+
+	absWorktreePath, err := filepath.Abs(worktreePath)
+	if err != nil {
+		return nil
+	}
+
+	repoDir := filepath.Dir(absWorktreePath)
+	if strings.HasPrefix(repoDir, absRoot) {
+		if empty, err := isDirEmpty(repoDir); err == nil && empty {
+			_ = os.Remove(repoDir)
+		}
+	}
+
+	return nil
+}
+
+func isDirEmpty(path string) (bool, error) {
+	dir, err := os.Open(path)
+	switch {
+	case os.IsNotExist(err):
+		return true, nil
+	case err != nil:
+		return false, err
+	}
+	defer dir.Close()
+
+	_, err = dir.Readdirnames(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	return false, err
 }
 
 func printCDMarker(path string) {
@@ -633,6 +680,10 @@ var removeCmd = &cobra.Command{
 		gitCmd.Stderr = os.Stderr
 		if err := gitCmd.Run(); err != nil {
 			return fmt.Errorf("failed to remove worktree: %w", err)
+		}
+
+		if err := cleanupWorktreePath(existingPath); err != nil {
+			return err
 		}
 
 		fmt.Printf("✓ Removed worktree: %s\n", existingPath)
