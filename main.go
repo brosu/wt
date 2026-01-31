@@ -611,6 +611,10 @@ func checkoutPROrMR(input string, remoteType RemoteType) error {
 	fetchCmd.Stderr = os.Stderr
 	_ = fetchCmd.Run() // Ignore errors, branch might already exist
 
+	if remoteType == RemoteGitHub {
+		linkGitHubPRBranch(prNumber, branch)
+	}
+
 	// Create worktree
 	gitCmd := exec.Command("git", "worktree", "add", path, branch)
 	gitCmd.Stdout = os.Stdout
@@ -622,6 +626,47 @@ func checkoutPROrMR(input string, remoteType RemoteType) error {
 	fmt.Printf("✓ %s #%s checked out at: %s\n", strings.ToUpper(prefix), prNumber, path)
 	printCDMarker(path)
 	return nil
+}
+
+func linkGitHubPRBranch(prNumber string, localBranch string) {
+	headRefCmd := exec.Command("gh", "pr", "view", prNumber, "--json", "headRefName", "--jq", ".headRefName")
+	headRefCmd.Stderr = os.Stderr
+	headRefOutput, err := headRefCmd.Output()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to read PR head ref: %v\n", err)
+		return
+	}
+
+	headRefName := strings.TrimSpace(string(headRefOutput))
+	if headRefName == "" {
+		return
+	}
+
+	lsRemoteCmd := exec.Command("git", "ls-remote", "--heads", "origin", headRefName)
+	lsRemoteCmd.Stderr = os.Stderr
+	lsRemoteOutput, err := lsRemoteCmd.Output()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to check origin branch: %v\n", err)
+		return
+	}
+	if strings.TrimSpace(string(lsRemoteOutput)) == "" {
+		return
+	}
+
+	fetchHeadCmd := exec.Command("git", "fetch", "origin", headRefName)
+	fetchHeadCmd.Stdout = os.Stdout
+	fetchHeadCmd.Stderr = os.Stderr
+	if err := fetchHeadCmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to fetch origin branch: %v\n", err)
+		return
+	}
+
+	setUpstreamCmd := exec.Command("git", "branch", "--set-upstream-to", fmt.Sprintf("origin/%s", headRefName), localBranch)
+	setUpstreamCmd.Stdout = os.Stdout
+	setUpstreamCmd.Stderr = os.Stderr
+	if err := setUpstreamCmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to set upstream: %v\n", err)
+	}
 }
 
 var listCmd = &cobra.Command{
