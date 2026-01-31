@@ -248,7 +248,16 @@ just build     # Build the binary
 just test      # Run tests
 just clean     # Clean build artifacts
 just build-all # Cross-compile for multiple platforms
+just dev-shellenv  # Print shell integration for dev (source this)
 ```
+
+For shell completion when running from source:
+
+```bash
+eval "$(just dev-shellenv)"
+```
+
+Re-run the `eval` line after changing the shell completion code.
 
 ## Requirements
 
