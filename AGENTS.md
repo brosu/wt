@@ -10,7 +10,7 @@ This document provides guidelines for AI coding agents (like Claude Code, Cursor
 ```bash
 # BAD - Don't do this!
 cd /path/to/main/wt/repo
-git checkout -b feature/new-branch
+git checkout -b feat/new-branch
 ```
 
 This leaves the user's main working directory on a feature branch.
@@ -18,8 +18,8 @@ This leaves the user's main working directory on a feature branch.
 ### ✅ DO: Create worktrees for each task
 ```bash
 # GOOD - Use wt to create isolated worktrees!
-wt create feature/new-branch
-# This creates: ~/dev/worktrees/wt/feature/new-branch
+wt create feat/new-branch
+# This creates: ~/dev/worktrees/wt/feat/new-branch
 # Main repo stays on main branch
 ```
 
@@ -159,6 +159,16 @@ wt mr https://gitlab.com/owner/repo/-/merge_requests/456
 This creates a worktree at `~/dev/worktrees/wt/mr-456`
 
 ## Project-Specific Guidelines
+
+### Branching Workflow (origin vs upstream)
+
+Follow the branching workflow in `CONTRIBUTING.md`. In short:
+
+- `origin/main` is treated as a personal stable branch (PR-only).
+- Keep a separate mirror branch in your fork (for example `origin/upstream-main`) that fast-forwards from `upstream/main`.
+- When creating worktrees, be explicit about the base ref:
+  - Personal-only work: `wt create feat/my-change origin/main`
+  - Upstream PRs: `wt create feat/my-change origin/upstream-main` (or `upstream/main`)
 
 ### Branch Naming
 Follow the project's convention:
