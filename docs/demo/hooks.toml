@@ -1,0 +1,3 @@
+[hooks]
+post_create = ["test -f $WT_MAIN/.env && cp $WT_MAIN/.env $WT_PATH/.env && echo '  .env copied from main checkout' || true"]
+post_checkout = ["test -f $WT_MAIN/.env && cp $WT_MAIN/.env $WT_PATH/.env && echo '  .env copied from main checkout' || true"]

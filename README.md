@@ -10,6 +10,8 @@
 A fast, simple Git worktree helper written in Go.
 Inspired by [haacked/dotfiles/tree-me](https://github.com/haacked/dotfiles/blob/main/bin/tree-me).
 
+![wt quickstart](docs/wt-quickstart.gif)
+
 ## Features
 
 - Configurable worktree strategies: `global`, `sibling-repo`, `parent-branches`, and more
@@ -124,75 +126,72 @@ eval "$(wt shellenv)"
 
 ## Usage
 
-### Commands
+### Checkout & Create
+
+![wt quickstart](docs/wt-quickstart.gif)
 
 ```bash
 # Checkout existing branch in new worktree
-wt checkout feature-branch
-wt co feature-branch              # short alias
+wt co feature-branch
 wt co                             # interactive: select from available branches
 
 # Create new branch in worktree (defaults to main/master as base)
 wt create my-feature
 wt create my-feature develop      # specify base branch
+```
 
-# Checkout GitHub PR in worktree using the PR's branch name (requires gh CLI)
+### PRs & MRs
+
+```bash
+# Checkout GitHub PR (requires gh CLI)
 wt pr 123                                          # looks up branch for PR #123
 wt pr https://github.com/org/repo/pull/123         # GitHub PR URL
 wt pr                                              # interactive: select from open PRs
 
-# Checkout GitLab MR in worktree using the MR's branch name (requires glab CLI)
+# Checkout GitLab MR (requires glab CLI)
 wt mr 123                                          # looks up branch for MR !123
 wt mr https://gitlab.com/org/repo/-/merge_requests/123  # GitLab MR URL
 wt mr                                              # interactive: select from open MRs
+```
 
-# List all worktrees
-wt list
-wt ls                             # short alias
+### List & Remove
 
-# Remove a worktree
-wt remove old-branch
-wt rm old-branch                  # short alias
-wt rm                             # interactive: select from existing worktrees
+![wt create](docs/wt-create.gif)
 
-# Migrate existing worktrees to configured paths
-wt migrate                        # migrate now
+```bash
+wt ls                             # list all worktrees
+wt rm old-branch                  # remove a worktree
+wt rm                             # interactive: select worktree to remove
+```
+
+### Maintenance
+
+```bash
+wt migrate                        # migrate worktrees to configured paths
 wt migrate --force                # force when target path exists
-# If the primary checkout is under WORKTREE_ROOT, migrate moves it to ~/src/<owner>/<repo>
-# (or ~/src/<repo> when remote owner is unavailable) and repairs linked worktrees.
+wt prune                          # clean up stale worktree admin files
+```
 
-# Clean up stale worktree administrative files
-wt prune
+### Info & Config
 
-# Configure shell integration
-wt init
-wt init --uninstall   # Remove shell integration
+![wt info](docs/wt-info.gif)
 
-# Show shell integration code (for manual setup)
-wt shellenv
+```bash
+wt info                           # show active strategy, pattern, variables
+wt config show                    # show effective config with sources
+wt config init                    # create a default config file
+wt config path                    # print the config file path
+```
 
-# Show version
-wt version
+### Shell Integration & Misc
 
-# Show worktree location configuration
-wt info
-
-# Manage configuration file
-wt config init          # Create a default config file
-wt config show          # Show effective configuration with sources
-wt config path          # Print the config file path
-
-# Show help
-wt --help
-wt <command> --help
-
-# Show practical examples
-wt examples
-
-# Use machine-readable output
-wt --format json version
-wt --format json list
-wt --format json
+```bash
+wt init                           # auto-detect shell and configure
+wt init --uninstall               # remove shell integration
+wt shellenv                       # print shell integration code
+wt version                        # show version
+wt examples                       # show practical examples
+wt --help                         # show help
 ```
 
 ### JSON Output (`--format json`)
@@ -412,6 +411,8 @@ Run `wt info` to see the active strategy, pattern, and available variables.
 
 Hooks let you run custom commands before or after `wt` operations. Define them in the `[hooks]` section of your config file:
 
+![wt hooks](docs/wt-hooks.gif)
+
 ```toml
 # ~/.config/wt/config.toml
 [hooks]
@@ -467,6 +468,8 @@ pre_remove = ["cd $WT_PATH && npm run clean"]
 ### Example: Task spanning multiple repositories
 
 When a task or story requires changes across multiple repositories (e.g. a shared library and a main application), you can organize worktrees by feature instead of by repo using a custom pattern:
+
+![wt multi-repo](docs/wt-multi-repo.gif)
 
 ```toml
 # ~/.config/wt/config.toml
