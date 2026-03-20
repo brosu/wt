@@ -187,6 +187,8 @@ wt config path                    # print the config file path
 
 ### Interactive Selection
 
+![wt interactive](docs/wt-interactive.gif)
+
 When you run `wt co`, `wt rm`, `wt pr`, or `wt mr` without arguments, you'll get an interactive selection menu:
 
 ```bash

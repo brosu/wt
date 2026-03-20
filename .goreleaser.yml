@@ -77,7 +77,7 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
     homepage: https://github.com/timvw/wt
-    description: A fast, simple Git worktree helper
+    description: Fast, simple Git worktree helper
     license: MIT
     install: |
       bin.install "wt"
