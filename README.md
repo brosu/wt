@@ -36,8 +36,6 @@ See [docs/installation.md](docs/installation.md) for all platforms (Scoop, WinGe
 
 ### Checkout & Create
 
-![wt quickstart](docs/wt-quickstart.gif)
-
 ```bash
 # Checkout existing branch in new worktree
 wt co feature-branch
