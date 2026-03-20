@@ -5,7 +5,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     tree \
+    tmux \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
 
 # Install wt
 ARG WT_VERSION=0.1.25
@@ -74,6 +80,9 @@ RUN printf 'strategy = "custom"\npattern = "{.worktreeRoot}/{.branch}/{.repo.Nam
 
 # Hooks config (copy .env on create/checkout)
 COPY --chown=demo:demo hooks.toml .config/wt/variants/hooks.toml
+
+# Claude Code + tmux hooks config
+COPY --chown=demo:demo claude-tmux.toml .config/wt/variants/claude-tmux.toml
 
 # Copy default config
 RUN cp .config/wt/variants/default.toml .config/wt/config.toml

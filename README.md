@@ -349,6 +349,27 @@ post_checkout = ["cd $WT_PATH && npm install"]
 pre_remove = ["cd $WT_PATH && npm run clean"]
 ```
 
+### Example: Claude Code + tmux integration
+
+Launch a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) session in tmux for every worktree automatically:
+
+![wt claude-tmux](docs/wt-claude-tmux.gif)
+
+```toml
+[hooks]
+post_create = [
+  "tmux new-session -d -s \"$WT_REPO_NAME/$WT_BRANCH\" -c \"$WT_PATH\" \"claude -n '$WT_REPO_NAME/$WT_BRANCH'\" 2>/dev/null; echo \"tmux session: $WT_REPO_NAME/$WT_BRANCH\""
+]
+post_checkout = [
+  "tmux new-session -d -s \"$WT_REPO_NAME/$WT_BRANCH\" -c \"$WT_PATH\" \"claude -n '$WT_REPO_NAME/$WT_BRANCH'\" 2>/dev/null; echo \"tmux session: $WT_REPO_NAME/$WT_BRANCH\""
+]
+pre_remove = [
+  "tmux kill-session -t \"$WT_REPO_NAME/$WT_BRANCH\" 2>/dev/null || true"
+]
+```
+
+Claude Code also has built-in worktree support via `claude --worktree --tmux`, but it uses a fixed directory layout. The hooks approach lets you keep `wt`'s configurable strategies and naming conventions.
+
 ### Example: Task spanning multiple repositories
 
 When a task or story requires changes across multiple repositories (e.g. a shared library and a main application), you can organize worktrees by feature instead of by repo using a custom pattern:

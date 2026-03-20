@@ -1,0 +1,4 @@
+[hooks]
+post_create = ["tmux new-session -d -s \"$WT_REPO_NAME/$WT_BRANCH\" -c \"$WT_PATH\" \"claude -n '$WT_REPO_NAME/$WT_BRANCH'\" 2>/dev/null; echo \"  tmux session: $WT_REPO_NAME/$WT_BRANCH\""]
+post_checkout = ["tmux new-session -d -s \"$WT_REPO_NAME/$WT_BRANCH\" -c \"$WT_PATH\" \"claude -n '$WT_REPO_NAME/$WT_BRANCH'\" 2>/dev/null; echo \"  tmux session: $WT_REPO_NAME/$WT_BRANCH\""]
+pre_remove = ["tmux kill-session -t \"$WT_REPO_NAME/$WT_BRANCH\" 2>/dev/null || true"]
