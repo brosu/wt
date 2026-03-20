@@ -123,7 +123,6 @@ eval "$(wt shellenv)"
 
 **Note for zsh users:** Place this after `compinit` in your config file.
 
-
 ## Usage
 
 ### Checkout & Create
@@ -164,12 +163,15 @@ wt rm old-branch                  # remove a worktree
 wt rm                             # interactive: select worktree to remove
 ```
 
-### Maintenance
+### Maintenance & Misc
 
 ```bash
 wt migrate                        # migrate worktrees to configured paths
 wt migrate --force                # force when target path exists
 wt prune                          # clean up stale worktree admin files
+wt version                        # show version
+wt examples                       # show practical examples
+wt --help                         # show help
 ```
 
 ### Info & Config
@@ -183,15 +185,18 @@ wt config init                    # create a default config file
 wt config path                    # print the config file path
 ```
 
-### Shell Integration & Misc
+### Interactive Selection
+
+When you run `wt co`, `wt rm`, `wt pr`, or `wt mr` without arguments, you'll get an interactive selection menu:
 
 ```bash
-wt init                           # auto-detect shell and configure
-wt init --uninstall               # remove shell integration
-wt shellenv                       # print shell integration code
-wt version                        # show version
-wt examples                       # show practical examples
-wt --help                         # show help
+$ wt co
+Use the arrow keys to navigate: ↓ ↑ → ←
+? Select branch to checkout:
+  ▸ feature/add-auth
+    feature/update-docs
+    bugfix/login-issue
+    main
 ```
 
 ### JSON Output (`--format json`)
@@ -204,88 +209,9 @@ wt --format json info
 wt --format json config show
 wt --format json list
 wt --format json examples
-wt --format json          # root help in JSON envelope
 ```
 
-Important behavior for shell integration:
-
-- In `text` mode (default), shell integration may auto-navigate to the target worktree.
-- In `json` mode, output is kept machine-readable and shell integration does **not** auto-navigate.
-
-For commands that normally prompt interactively (`wt co`, `wt rm`, `wt pr`, `wt mr`), pass explicit arguments when using `--format json`.
-
-### Interactive Selection
-
-When you run `wt co`, `wt rm`, `wt pr`, or `wt mr` without arguments, you'll get an interactive selection menu:
-
-```bash
-# Interactive branch checkout
-$ wt co
-Use the arrow keys to navigate: ↓ ↑ → ←
-? Select branch to checkout:
-  ▸ feature/add-auth
-    feature/update-docs
-    bugfix/login-issue
-    main
-
-# Interactive worktree removal
-$ wt rm
-Use the arrow keys to navigate: ↓ ↑ → ←
-? Select worktree to remove:
-  ▸ feature/add-auth
-    feature/update-docs
-    bugfix/login-issue
-
-# Interactive PR checkout — resolves to the PR's branch name (requires gh CLI)
-$ wt pr
-Use the arrow keys to navigate: ↓ ↑ → ←
-? Select Pull Request:
-  ▸ #123: Add authentication feature
-    #124: Update documentation
-    #125: Fix login bug
-# e.g. selecting #123 creates worktree at ~/dev/worktrees/<repo>/feat/add-auth
-
-# Interactive MR checkout — resolves to the MR's branch name (requires glab CLI)
-$ wt mr
-Use the arrow keys to navigate: ↓ ↑ → ←
-? Select Merge Request:
-  ▸ !456: Add authentication feature
-    !457: Update documentation
-    !458: Fix login bug
-# e.g. selecting !456 creates worktree at ~/dev/worktrees/<repo>/feat/add-auth
-```
-
-### Examples
-
-```bash
-# Create a new feature branch from main
-wt create add-auth-feature
-
-# Checkout an existing branch
-wt checkout bugfix-login
-
-# Work on a GitHub PR (checks out the PR's branch, e.g. feat/add-auth)
-wt pr 456
-
-# Work on a GitLab MR (checks out the MR's branch, e.g. fix/api-cleanup)
-wt mr 789
-
-# List all your worktrees
-wt list
-
-# Remove a worktree when done
-wt rm add-auth-feature
-
-# Show full examples catalog (filter with rg/grep if needed)
-wt examples
-
-# Each example includes outcome + path illustration based on config pattern
-# e.g. path example: $WORKTREE_ROOT/<repo>/<branch> -> (removed)
-# and concrete text/json output samples where relevant
-
-# JSON mode does not auto-navigate; use returned navigate_to
-wt --format json create add-auth-feature
-```
+In `json` mode, shell integration does **not** auto-navigate. For commands that normally prompt interactively, pass explicit arguments when using `--format json`.
 
 ## Configuration
 
@@ -334,16 +260,9 @@ Configuration values are resolved in this order (highest priority first):
 
 Run `wt config show` to see the effective value and source of each setting.
 
-### Worktree Location
+### Strategies & Patterns
 
 By default, worktrees are created at `~/dev/worktrees/<repo>/{.branch}` using the `global` strategy.
-
-Configure the location with environment variables or the config file:
-
-- `WORKTREE_ROOT` / `root` (default: `~/dev/worktrees`)
-- `WORKTREE_STRATEGY` / `strategy` (`global`, `sibling-repo`, `parent-branches`, `parent-worktrees`, `parent-dotdir`, `inside-dotdir`, `custom`)
-- `WORKTREE_PATTERN` / `pattern` (optional; overrides the default structure within the chosen strategy)
-- `WORKTREE_SEPARATOR` / `separator` (default: `/`; controls how `/` and `\` in value variables are replaced)
 
 Available pattern variables:
 
@@ -378,48 +297,11 @@ The `separator` setting controls how `/` and `\` characters in **value variables
 | `_` | `feat_foo` (flat) | Alternative flat layout |
 | `""` | `featfoo` | Compact (rarely used) |
 
-```toml
-# ~/.config/wt/config.toml
-separator = "-"   # feat/foo -> feat-foo
-```
-
-```bash
-export WORKTREE_SEPARATOR="-"
-```
-
-Customize the location via environment variables:
-
-```bash
-export WORKTREE_ROOT="$HOME/projects/worktrees"
-export WORKTREE_STRATEGY="sibling-repo"
-export WORKTREE_SEPARATOR="-"
-export WORKTREE_PATTERN="{.repo.Main}/../{.repo.Name}/{.branch}"
-```
-
-Or via config file:
-
-```toml
-root = "~/projects/worktrees"
-strategy = "sibling-repo"
-separator = "-"
-pattern = "{.repo.Main}/../{.repo.Name}/{.branch}"
-```
-
-Run `wt info` to see the active strategy, pattern, and available variables.
-
 ### Hooks
 
 Hooks let you run custom commands before or after `wt` operations. Define them in the `[hooks]` section of your config file:
 
 ![wt hooks](docs/wt-hooks.gif)
-
-```toml
-# ~/.config/wt/config.toml
-[hooks]
-post_create = ["test -f $WT_MAIN/.env && cp $WT_MAIN/.env $WT_PATH/.env || true"]
-post_checkout = ["cd $WT_PATH && npm install"]
-pre_remove = ["echo Removing worktree at $WT_PATH"]
-```
 
 **Available hooks:**
 
@@ -506,33 +388,10 @@ strategy = "custom"
 pattern = "{.worktreeRoot}/{.env.FEATURE}/{.repo.Name}"
 ```
 
-Set the `FEATURE` environment variable and create worktrees across repos:
-
 ```bash
 export FEATURE=PROJ-42-new-checkout
 
 cd ~/src/frontend
-wt create main        # any branch name works; layout is driven by FEATURE
-
-cd ~/src/backend
-wt create main
-```
-
-This groups all repositories for a feature together:
-
-```
-~/dev/worktrees/
-  PROJ-42-new-checkout/
-    frontend/
-    backend/
-```
-
-Switch to a different feature by changing the variable:
-
-```bash
-export FEATURE=PROJ-99-hotfix
-
-cd ~/src/frontend
 wt create main
 
 cd ~/src/backend
@@ -542,9 +401,6 @@ wt create main
 ```
 ~/dev/worktrees/
   PROJ-42-new-checkout/
-    frontend/
-    backend/
-  PROJ-99-hotfix/
     frontend/
     backend/
 ```
@@ -603,16 +459,6 @@ The tool wraps Git's native worktree commands with a convenient interface and or
 3. **Prevents Duplicates**: Checks if a worktree already exists before creating
 4. **Auto-CD**: With shell integration, automatically changes to the worktree directory
 5. **Tab Completion**: Makes it easy to work with existing branches
-
-## Comparison with Original
-
-This Go port maintains feature parity with the original bash script while offering:
-
-- Faster execution (compiled binary)
-- No bash dependency
-- Easier to distribute (single binary)
-- Cross-platform support (builds on Windows, macOS, Linux)
-- Built-in completion support via cobra
 
 ## License
 

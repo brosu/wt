@@ -44,7 +44,7 @@ error_symbol = "[❯](bold red)"\n\
 ' > .config/starship.toml
 
 # Bake starship init into .bashrc so it activates even with bare bash
-RUN printf 'eval "$(starship init bash)"\n' > .bashrc
+RUN printf 'eval "$(starship init bash)"\neval "$(wt shellenv)"\n' > .bashrc
 
 # Create main-app repo with branches and .env
 RUN mkdir -p src/main-app && cd src/main-app && git init && \

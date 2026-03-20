@@ -18,6 +18,17 @@ mcp_call() {
     -d "{\"jsonrpc\":\"2.0\",\"id\":$id,\"method\":\"tools/call\",\"params\":{\"name\":\"$name\",\"arguments\":$args}}"
 }
 
+# Fire-and-forget: send without waiting for response
+mcp_fire() {
+  local name="$1" args="$2"
+  local id; id=$(next_id)
+  curl -s --max-time 3 -X POST "$SHELLWRIGHT_URL/mcp" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -H "Mcp-Session-Id: $MCP_SESSION" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":$id,\"method\":\"tools/call\",\"params\":{\"name\":\"$name\",\"arguments\":$args}}" > /dev/null 2>&1 &
+}
+
 mcp_init() {
   MCP_SESSION=$(curl -s -D - -X POST "$SHELLWRIGHT_URL/mcp" \
     -H "Content-Type: application/json" \
@@ -32,19 +43,33 @@ mcp_init() {
 }
 
 send() {
-  mcp_call "shell_send" "{\"session_id\":\"$SHELL_SESSION\",\"input\":\"$1\"}" > /dev/null 2>&1
+  mcp_call "shell_send" "{\"session_id\":\"$SHELL_SESSION\",\"input\":\"$1\",\"delay_ms\":0}" > /dev/null 2>&1
 }
 
-# Send command and press enter (appears instantly)
+# Type command char by char (fire-and-forget, 30ms between chars) then press enter
 run() {
   local text="$1"
-  # Escape special JSON chars
-  text="${text//\\/\\\\}"
-  text="${text//\"/\\\"}"
-  send "${text}\\r"
+  for (( i=0; i<${#text}; i++ )); do
+    local char="${text:$i:1}"
+    case "$char" in '"') char='\\"' ;; '\\') char='\\\\' ;; esac
+    mcp_fire "shell_send" "{\"session_id\":\"$SHELL_SESSION\",\"input\":\"$char\",\"delay_ms\":0}"
+    sleep 0.03
+  done
+  sleep 0.3
+  send "\\r"
 }
 
-pause() { sleep "${1:-4}"; }
+# Pause that defeats frame deduplication by typing/deleting a char
+pause() {
+  local duration="${1:-6}"
+  local end=$((SECONDS + duration))
+  while [ $SECONDS -lt $end ]; do
+    mcp_fire "shell_send" "{\"session_id\":\"$SHELL_SESSION\",\"input\":\" \",\"delay_ms\":0}"
+    sleep 0.5
+    mcp_fire "shell_send" "{\"session_id\":\"$SHELL_SESSION\",\"input\":\"\\\\b \\\\b\",\"delay_ms\":0}"
+    sleep 0.5
+  done
+}
 
 shell_start() {
   local docker_args="$1"
@@ -61,7 +86,7 @@ shell_stop() {
 }
 
 record_start() {
-  mcp_call "shell_record_start" "{\"session_id\":\"$SHELL_SESSION\",\"fps\":10}" > /dev/null 2>&1
+  mcp_call "shell_record_start" "{\"session_id\":\"$SHELL_SESSION\",\"fps\":30}" > /dev/null 2>&1
   sleep 0.3
 }
 
