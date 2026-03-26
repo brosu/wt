@@ -418,6 +418,29 @@ var exampleCatalog = map[string]exampleTopic{
 			},
 		},
 	},
+	"status": {
+		Name:        "status",
+		Description: "Show status dashboard of all worktrees",
+		Examples: []usageExample{
+			{
+				Command:     "wt status",
+				Purpose:     "Show a dashboard of all worktrees with dirty/clean state and ahead/behind counts.",
+				Outcome:     "Human-readable table with branch, path, state, and tracking info for each worktree.",
+				ExitCode:    "0 on success; non-zero if not in a git repository.",
+				TextExample: "  main           /path/to/main              clean   ↑0 ↓0\n* feat/foo       /path/to/worktree          dirty   ↑2 ↓1",
+				SideEffects: []string{"Read-only command."},
+				FollowUp:    []string{"wt list", "wt cleanup"},
+			},
+			{
+				Command:     "wt --format json status",
+				Purpose:     "Machine-readable worktree status for automation.",
+				Outcome:     "JSON envelope with worktrees array including dirty, ahead, behind, current fields.",
+				ExitCode:    "0 on success; non-zero on failure.",
+				JSONExample: `{"ok":true,"command":"wt status","data":{"worktrees":[{"path":"/path/to/main","branch":"main","dirty":false,"ahead":0,"behind":0,"current":false,"has_upstream":true}]}}`,
+				SideEffects: []string{"Read-only command."},
+			},
+		},
+	},
 	"version": {
 		Name:        "version",
 		Description: "Show wt version",
