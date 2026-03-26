@@ -394,6 +394,30 @@ var exampleCatalog = map[string]exampleTopic{
 			},
 		},
 	},
+	"default": {
+		Name:        "default",
+		Description: "Navigate to the main worktree",
+		Examples: []usageExample{
+			{
+				Command:       "wt default",
+				Purpose:       "Navigate to the primary checkout (main/master branch worktree).",
+				Outcome:       "Shell auto-navigates to the main worktree path.",
+				ExitCode:      "0 on success; non-zero if not in a git repository.",
+				TextExample:   "Navigating to main worktree: /path/to/main\nwt navigating to: /path/to/main",
+				Preconditions: []string{"Run inside a git repository."},
+				SideEffects:   []string{"Text mode + shellenv may auto-navigate."},
+				FollowUp:      []string{"wt list", "wt status"},
+			},
+			{
+				Command:     "wt --format json default",
+				Purpose:     "Machine-readable main worktree path for automation.",
+				Outcome:     "JSON envelope with path and navigate_to.",
+				ExitCode:    "0 on success; non-zero on failure.",
+				JSONExample: `{"ok":true,"command":"wt default","data":{"path":"/path/to/main","navigate_to":"/path/to/main"}}`,
+				SideEffects: []string{"No auto-navigation marker in stdout."},
+			},
+		},
+	},
 	"version": {
 		Name:        "version",
 		Description: "Show wt version",
