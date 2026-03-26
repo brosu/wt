@@ -80,3 +80,42 @@ wt create main
 ```
 
 If the referenced environment variable is not set, `wt` will return an error.
+
+## Deterministic dev server port per worktree
+
+When running multiple worktrees simultaneously, each dev server needs a unique port. Use a post-checkout hook to compute a deterministic port offset from the branch name:
+
+```toml
+[hooks]
+post_create = [
+  "printf 'PORT=%d\\n' $(( 3000 + $(printf '%s' \"$WT_BRANCH\" | cksum | cut -d' ' -f1) % 997 )) > $WT_PATH/.env.port"
+]
+post_checkout = [
+  "printf 'PORT=%d\\n' $(( 3000 + $(printf '%s' \"$WT_BRANCH\" | cksum | cut -d' ' -f1) % 997 )) > $WT_PATH/.env.port"
+]
+```
+
+This hashes the branch name with `cksum` and maps it to a port in the range 3000–3996. The result is stable — the same branch always gets the same port.
+
+Then read it in your dev server config (e.g. `vite.config.ts`):
+
+```js
+import { readFileSync } from 'fs';
+
+const port = (() => {
+  try {
+    const env = readFileSync('.env.port', 'utf8');
+    const match = env.match(/PORT=(\d+)/);
+    return match ? parseInt(match[1]) : 3000;
+  } catch { return 3000; }
+})();
+
+export default { server: { port } };
+```
+
+Or source it in a shell script:
+
+```bash
+source .env.port 2>/dev/null || PORT=3000
+echo "Starting dev server on port $PORT"
+```
