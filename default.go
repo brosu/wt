@@ -22,7 +22,7 @@ var defaultCmd = &cobra.Command{
 			})
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "Navigating to main worktree: %s\n", info.Main)
+		fmt.Printf("Navigating to main worktree: %s\n", info.Main)
 		printCDMarker(info.Main)
 		return nil
 	},
