@@ -1,8 +1,10 @@
 # Examples
 
-## Claude Code + tmux integration
+## AI assistants and editors
 
-Launch a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) session in tmux for every worktree automatically:
+Launch an AI coding assistant or editor automatically when checking out a worktree.
+
+### Claude Code + tmux
 
 ![wt claude-tmux](wt-claude-tmux.gif)
 
@@ -20,6 +22,43 @@ pre_remove = [
 ```
 
 Claude Code also has built-in worktree support via `claude --worktree --tmux`, but it uses a fixed directory layout. The hooks approach lets you keep `wt`'s configurable strategies and naming conventions.
+
+### Other assistants and editors
+
+```toml
+[hooks]
+# OpenAI Codex CLI in tmux
+post_checkout = [
+  "tmux new-session -d -s \"$WT_REPO_NAME/$WT_BRANCH\" -c \"$WT_PATH\" codex 2>/dev/null"
+]
+
+# Aider in tmux
+# post_checkout = [
+#   "tmux new-session -d -s \"$WT_REPO_NAME/$WT_BRANCH\" -c \"$WT_PATH\" aider 2>/dev/null"
+# ]
+
+# Open worktree in VS Code
+# post_checkout = ["code $WT_PATH"]
+
+# Open worktree in Cursor
+# post_checkout = ["cursor $WT_PATH"]
+
+# Open worktree in Zed
+# post_checkout = ["zed $WT_PATH"]
+```
+
+Mix and match — for example, open VS Code _and_ start Claude Code in tmux:
+
+```toml
+[hooks]
+post_checkout = [
+  "code $WT_PATH",
+  "tmux new-session -d -s \"$WT_REPO_NAME/$WT_BRANCH\" -c \"$WT_PATH\" \"claude -n '$WT_REPO_NAME/$WT_BRANCH'\" 2>/dev/null"
+]
+pre_remove = [
+  "tmux kill-session -t \"$WT_REPO_NAME/$WT_BRANCH\" 2>/dev/null || true"
+]
+```
 
 ## Task spanning multiple repositories
 
