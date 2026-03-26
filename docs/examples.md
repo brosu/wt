@@ -60,6 +60,22 @@ pre_remove = [
 ]
 ```
 
+## Copy `.env` to new worktrees
+
+Automatically copy environment files from the main worktree so new branches are ready to run immediately:
+
+```toml
+[hooks]
+post_create = [
+  "test -f $WT_MAIN/.env && cp $WT_MAIN/.env $WT_PATH/.env || true"
+]
+post_checkout = [
+  "test -f $WT_MAIN/.env && cp $WT_MAIN/.env $WT_PATH/.env || true"
+]
+```
+
+This copies `.env` only if it exists in the main checkout. Extend the pattern for other config files (`.env.local`, `config/local.yml`, etc.) by adding more `cp` commands.
+
 ## Task spanning multiple repositories
 
 When a task or story requires changes across multiple repositories (e.g. a shared library and a main application), you can organize worktrees by feature instead of by repo using a custom pattern:
