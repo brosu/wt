@@ -140,6 +140,11 @@ post_create = [
 # post_create = [
 #   "mkdir -p $HOME/.cache/wt/$WT_REPO_NAME/target && ln -sf $HOME/.cache/wt/$WT_REPO_NAME/target $WT_PATH/target"
 # ]
+
+# Terraform — share the .terraform directory (providers, modules)
+# post_create = [
+#   "mkdir -p $HOME/.cache/wt/$WT_REPO_NAME/.terraform && ln -sf $HOME/.cache/wt/$WT_REPO_NAME/.terraform $WT_PATH/.terraform && cd $WT_PATH && terraform init"
+# ]
 ```
 
 All worktrees for the same repo point to one `node_modules` (or `.venv`, or `target/`). The first `npm install` populates the cache; subsequent worktrees reuse it instantly.
