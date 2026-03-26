@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var migrateForce bool
+
 type migrateAction string
 
 const (
