@@ -119,3 +119,32 @@ Or source it in a shell script:
 source .env.port 2>/dev/null || PORT=3000
 echo "Starting dev server on port $PORT"
 ```
+
+## Shared build cache across worktrees
+
+Each worktree normally gets its own `node_modules`, `.venv`, or build output directory. This wastes disk space and install time. Use a hook to symlink these from a shared per-repo cache:
+
+```toml
+[hooks]
+# Node.js — share node_modules via a central cache per repo
+post_create = [
+  "mkdir -p $HOME/.cache/wt/$WT_REPO_NAME/node_modules && ln -sf $HOME/.cache/wt/$WT_REPO_NAME/node_modules $WT_PATH/node_modules && cd $WT_PATH && npm install"
+]
+
+# Python — share a single venv per repo
+# post_create = [
+#   "mkdir -p $HOME/.cache/wt/$WT_REPO_NAME/venv && ln -sf $HOME/.cache/wt/$WT_REPO_NAME/venv $WT_PATH/.venv && cd $WT_PATH && uv sync"
+# ]
+
+# Rust — share the target directory
+# post_create = [
+#   "mkdir -p $HOME/.cache/wt/$WT_REPO_NAME/target && ln -sf $HOME/.cache/wt/$WT_REPO_NAME/target $WT_PATH/target"
+# ]
+```
+
+All worktrees for the same repo point to one `node_modules` (or `.venv`, or `target/`). The first `npm install` populates the cache; subsequent worktrees reuse it instantly.
+
+> **Note:** Shared mutable caches work well for dependencies that are branch-independent. If branches use different dependency versions, consider per-branch cache keys instead:
+> ```bash
+> mkdir -p $HOME/.cache/wt/$WT_REPO_NAME/$WT_BRANCH/node_modules
+> ```
