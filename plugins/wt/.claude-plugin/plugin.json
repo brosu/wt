@@ -1,0 +1,7 @@
+{
+  "name": "wt",
+  "description": "Teaches Claude Code how to work with wt-managed git worktrees",
+  "author": {
+    "name": "timvw"
+  }
+}

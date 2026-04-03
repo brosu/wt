@@ -27,5 +27,5 @@ go.work.sum
 # OS
 .DS_Store
 Thumbs.db
-wt
+/wt
 go.work.sum
