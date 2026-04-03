@@ -69,6 +69,66 @@ post_checkout = ["echo 'Switched to $WT_BRANCH'"]
 
 Hook environment variables: `WT_PATH`, `WT_BRANCH`, `WT_MAIN`, `WT_REPO_NAME`, `WT_REPO_HOST`, `WT_REPO_OWNER`. Disable all hooks: `WT_HOOKS_DISABLED=1`.
 
+### Common Hook Recipes
+
+**Copy `.env` files from main worktree:**
+
+```toml
+[hooks]
+post_create = [
+  "test -f $WT_MAIN/.env && cp $WT_MAIN/.env $WT_PATH/.env || true"
+]
+post_checkout = [
+  "test -f $WT_MAIN/.env && cp $WT_MAIN/.env $WT_PATH/.env || true"
+]
+```
+
+**Auto-install dependencies (Node.js):**
+
+```toml
+[hooks]
+post_create = ["cd $WT_PATH && npm install"]
+post_checkout = ["cd $WT_PATH && npm install"]
+```
+
+**Auto-install dependencies (Python/uv):**
+
+```toml
+[hooks]
+post_create = ["cd $WT_PATH && uv sync"]
+post_checkout = ["cd $WT_PATH && uv sync"]
+```
+
+**Launch Claude Code in tmux per worktree:**
+
+```toml
+[hooks]
+post_create = [
+  "tmux new-session -d -s \"$WT_REPO_NAME/$WT_BRANCH\" -c \"$WT_PATH\" \"claude -n '$WT_REPO_NAME/$WT_BRANCH'\" 2>/dev/null; echo \"tmux session: $WT_REPO_NAME/$WT_BRANCH\""
+]
+pre_remove = [
+  "tmux kill-session -t \"$WT_REPO_NAME/$WT_BRANCH\" 2>/dev/null || true"
+]
+```
+
+**Shared build cache (symlink `node_modules` across worktrees):**
+
+```toml
+[hooks]
+post_create = [
+  "mkdir -p $HOME/.cache/wt/$WT_REPO_NAME/node_modules && ln -sf $HOME/.cache/wt/$WT_REPO_NAME/node_modules $WT_PATH/node_modules && cd $WT_PATH && npm install"
+]
+```
+
+**Deterministic dev server port per branch:**
+
+```toml
+[hooks]
+post_create = [
+  "printf 'PORT=%d\\n' $(( 3000 + $(printf '%s' \"$WT_BRANCH\" | cksum | cut -d' ' -f1) % 997 )) > $WT_PATH/.env.port"
+]
+```
+
 ## JSON Output
 
 Most commands support `--format json` for machine-readable output:

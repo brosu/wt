@@ -14,8 +14,16 @@ tests:
     prompt: "how do I checkout a GitHub PR with wt?"
     should_trigger: true
 
-  - id: wt-hooks
+  - id: wt-hooks-env
     prompt: "how do I set up hooks in wt to copy .env files?"
+    should_trigger: true
+
+  - id: wt-hooks-npm
+    prompt: "how do I auto-run npm install when creating a worktree?"
+    should_trigger: true
+
+  - id: wt-hooks-uv
+    prompt: "can wt automatically run uv sync for new worktrees?"
     should_trigger: true
 
   - id: wt-strategies
