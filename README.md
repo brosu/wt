@@ -24,6 +24,7 @@ Inspired by [haacked/dotfiles/tree-me](https://github.com/haacked/dotfiles/blob/
 - **Color-coded status output** — green (clean), red (dirty), yellow (ahead/behind), bold cyan (current); respects `NO_COLOR=1` and auto-strips colors when piped
 - **CI/CD status integration** — `wt status --ci` shows pipeline status (✓/✗/●) per branch via `gh` or `glab` CLI
 - **Per-repo `.wt.toml` config** — override global settings (strategy, hooks, etc.) on a per-repository basis
+- **Claude Code plugin** — install with `claude plugin add timvw/wt` to teach Claude how to use wt commands and worktree workflows
 - Shell integration with auto-cd functionality
 - Tab completion for Bash and Zsh
 
@@ -140,6 +141,7 @@ In `json` mode, shell integration does **not** auto-navigate. For commands that 
 | [Examples](docs/examples.md) | Claude Code + tmux, multi-repo workflows, environment variables |
 | [Installation](docs/installation.md) | All platforms, shell integration, building from source |
 | [Development](docs/development.md) | Building, testing, running from source |
+| [Claude Code Plugin](plugins/wt/) | Plugin that teaches Claude Code how to work with wt |
 
 ## How It Works
 

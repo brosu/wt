@@ -1,0 +1,14 @@
+{
+  "name": "wt",
+  "owner": {
+    "name": "timvw"
+  },
+  "plugins": [
+    {
+      "name": "wt",
+      "source": "./plugins/wt",
+      "description": "Teaches Claude Code how to work with wt-managed git worktrees",
+      "version": "0.1.0"
+    }
+  ]
+}
