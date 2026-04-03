@@ -136,6 +136,20 @@ wt create main
 
 If the referenced environment variable is not set, `wt` will return an error.
 
+## Git submodules in worktrees
+
+Git worktrees don't automatically initialize submodules. Use a hook to handle this:
+
+```toml
+[hooks]
+post_create = ["cd $WT_PATH && git submodule update --init --recursive"]
+post_checkout = ["cd $WT_PATH && git submodule update --init --recursive"]
+```
+
+This works well when all branches use the same (or similar) submodule commits — which is the common case.
+
+> **Caveat:** All worktrees share a single `.git/modules/` directory. If two worktrees pin the **same submodule to different commits**, running `git submodule update` in one worktree will move the shared checkout, making the submodule appear dirty in the other worktree. This is a [known git limitation](https://git-scm.com/docs/git-worktree#_bugs), not specific to wt. If your branches frequently diverge on submodule versions, consider using separate clones (`git clone`) instead of worktrees for that repo.
+
 ## Deterministic dev server port per worktree
 
 When running multiple worktrees simultaneously, each dev server needs a unique port. Use a post-checkout hook to compute a deterministic port offset from the branch name:
