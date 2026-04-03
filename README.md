@@ -24,7 +24,6 @@ Inspired by [haacked/dotfiles/tree-me](https://github.com/haacked/dotfiles/blob/
 - **Color-coded status output** — green (clean), red (dirty), yellow (ahead/behind), bold cyan (current); respects `NO_COLOR=1` and auto-strips colors when piped
 - **CI/CD status integration** — `wt status --ci` shows pipeline status (✓/✗/●) per branch via `gh` or `glab` CLI
 - **Per-repo `.wt.toml` config** — override global settings (strategy, hooks, etc.) on a per-repository basis
-- **Claude Code plugin** — install with `claude plugin add timvw/wt` to teach Claude how to use wt commands and worktree workflows
 - Shell integration with auto-cd functionality
 - Tab completion for Bash and Zsh
 
@@ -132,6 +131,19 @@ wt --format json examples
 ```
 
 In `json` mode, shell integration does **not** auto-navigate. For commands that normally prompt interactively, pass explicit arguments when using `--format json`.
+
+### Use with Claude Code
+
+Install the [Claude Code plugin](plugins/wt/) to teach Claude how to work with wt-managed worktrees:
+
+```bash
+claude plugin marketplace add timvw/wt
+claude plugin install wt@wt --scope local
+```
+
+Once installed, Claude understands wt commands, worktree strategies, and hooks — so you can ask it to create worktrees, set up hooks for copying `.env` files or running `npm install` / `uv sync`, and follow worktree-based workflows automatically.
+
+See [docs/examples.md](docs/examples.md#ai-assistants-and-editors) for hooks that launch Claude Code in tmux per worktree.
 
 ## Documentation
 
