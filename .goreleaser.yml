@@ -13,7 +13,7 @@ builds:
   - main: .
     binary: wt
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      - -s -w -X github.com/timvw/wt/cmd.Version={{.Version}}
     env:
       - CGO_ENABLED=0
     goos:
