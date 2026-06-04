@@ -110,11 +110,12 @@ const defaultConfigTemplate = `# wt configuration file
 #                              $WT_REPO_NAME, $WT_REPO_HOST, $WT_REPO_OWNER
 # Pre-hooks abort on failure; post-hooks warn only.
 # Set WT_HOOKS_DISABLED=1 to skip all hooks.
+# NOTE: Always quote path variables ("$WT_PATH") to handle spaces in paths.
 #
 # [hooks]
-# post_create = ["test -f $WT_MAIN/.env && cp $WT_MAIN/.env $WT_PATH/.env || true"]
-# post_checkout = ["cd $WT_PATH && npm install"]
-# pre_remove = ["echo Removing $WT_PATH"]
+# post_create = ["test -f \"$WT_MAIN/.env\" && cp \"$WT_MAIN/.env\" \"$WT_PATH/.env\" || true"]
+# post_checkout = ["cd \"$WT_PATH\" && npm install"]
+# pre_remove = ["echo \"Removing $WT_PATH\""]
 `
 
 // configDir returns the directory where wt config files are stored.
@@ -271,14 +272,41 @@ func loadWorktreeConfig() {
 	}
 }
 
-// expandHome replaces a leading ~ with the user's home directory.
+// expandHome replaces a leading ~ with the user's home directory
+// and expands environment variables ($VAR, ${VAR}, and %VAR% on Windows).
 func expandHome(path string) string {
-	if strings.HasPrefix(path, "~/") || path == "~" {
+	if strings.HasPrefix(path, "~/") || strings.HasPrefix(path, `~\`) || path == "~" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return path
 		}
-		return filepath.Join(home, path[1:])
+		path = filepath.Join(home, path[1:])
+	}
+	expanded := os.ExpandEnv(path)
+	if runtime.GOOS == "windows" {
+		expanded = expandWindowsEnv(expanded)
+	}
+	return expanded
+}
+
+// expandWindowsEnv expands %VAR% style environment variables.
+func expandWindowsEnv(path string) string {
+	for {
+		start := strings.Index(path, "%")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(path[start+1:], "%")
+		if end == -1 {
+			break
+		}
+		end += start + 1
+		varName := path[start+1 : end]
+		if val, ok := os.LookupEnv(varName); ok {
+			path = path[:start] + val + path[end+1:]
+		} else {
+			path = path[:start] + path[end+1:]
+		}
 	}
 	return path
 }

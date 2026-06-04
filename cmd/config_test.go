@@ -117,6 +117,11 @@ func TestExpandHome(t *testing.T) {
 			path: "",
 			want: "",
 		},
+		{
+			name: "expands ~\\ backslash path",
+			path: `~\projects\worktrees`,
+			want: filepath.Join(home, `\projects\worktrees`),
+		},
 	}
 
 	for _, tt := range tests {
@@ -124,6 +129,103 @@ func TestExpandHome(t *testing.T) {
 			got := expandHome(tt.path)
 			if got != tt.want {
 				t.Errorf("expandHome(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExpandHomeEnvVars(t *testing.T) {
+	t.Setenv("WT_TEST_DIR", "/custom/path")
+	t.Setenv("WT_TEST_TEAM", "myteam")
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "expands $VAR",
+			path: "$WT_TEST_DIR/worktrees",
+			want: "/custom/path/worktrees",
+		},
+		{
+			name: "expands ${VAR}",
+			path: "${WT_TEST_DIR}/worktrees",
+			want: "/custom/path/worktrees",
+		},
+		{
+			name: "tilde with env var in rest of path",
+			path: "~/$WT_TEST_TEAM/worktrees",
+			want: func() string {
+				home, _ := os.UserHomeDir()
+				return filepath.Join(home, "myteam", "worktrees")
+			}(),
+		},
+		{
+			name: "tilde alone still works",
+			path: "~/worktrees",
+			want: func() string {
+				home, _ := os.UserHomeDir()
+				return filepath.Join(home, "worktrees")
+			}(),
+		},
+		{
+			name: "unset var expands to empty",
+			path: "$WT_NONEXISTENT_VAR/worktrees",
+			want: "/worktrees",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := expandHome(tt.path)
+			if got != tt.want {
+				t.Errorf("expandHome(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExpandWindowsEnv(t *testing.T) {
+	t.Setenv("WT_WIN_TEST", `C:\Users\TestUser`)
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "expands %VAR%",
+			path: `%WT_WIN_TEST%\worktrees`,
+			want: `C:\Users\TestUser\worktrees`,
+		},
+		{
+			name: "expands multiple %VAR%",
+			path: `%WT_WIN_TEST%\%WT_WIN_TEST%`,
+			want: `C:\Users\TestUser\C:\Users\TestUser`,
+		},
+		{
+			name: "unset %VAR% expands to empty",
+			path: `%WT_NONEXISTENT%\worktrees`,
+			want: `\worktrees`,
+		},
+		{
+			name: "no percent signs unchanged",
+			path: `C:\plain\path`,
+			want: `C:\plain\path`,
+		},
+		{
+			name: "single percent sign unchanged",
+			path: `50% done`,
+			want: `50% done`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := expandWindowsEnv(tt.path)
+			if got != tt.want {
+				t.Errorf("expandWindowsEnv(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
 	}
