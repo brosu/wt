@@ -22,6 +22,47 @@ winget install timvw.wt
 wt init  # Configure shell integration
 ```
 
+## Nix
+
+```bash
+# Run without installing
+nix run github:timvw/wt -- version
+
+# Install to your profile
+nix profile install github:timvw/wt
+wt init  # Configure shell integration
+```
+
+The installed `wt` binary bundles `git` in its runtime path. The shell
+integration (`wt init`) runs in your interactive shell, however, and calls
+`git` (completions) and `script(1)` (PTY for interactive commands) directly, so
+make sure both are on your `PATH`: `git`, plus `util-linux` for `script(1)` on
+Linux (on macOS `script` ships with the base system).
+
+For NixOS or home-manager, add `wt` as a flake input and reference its package
+in your modules (it is not part of `nixpkgs`, so `pkgs.wt` will not resolve):
+
+```nix
+# flake.nix
+{
+  inputs.wt.url = "github:timvw/wt";
+
+  outputs = { self, nixpkgs, wt, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ({ pkgs, ... }: {
+          # NixOS
+          environment.systemPackages = [ wt.packages.${pkgs.system}.default ];
+          # home-manager equivalent:
+          # home.packages = [ wt.packages.${pkgs.system}.default ];
+        })
+      ];
+    };
+  };
+}
+```
+
 ## Linux Packages
 
 Download `.deb`, `.rpm`, or `.pkg.tar.zst` packages from the [releases page](https://github.com/timvw/wt/releases).
