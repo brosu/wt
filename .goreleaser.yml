@@ -155,3 +155,11 @@ release:
   draft: false
   prerelease: auto
   name_template: "{{.Tag}}"
+  # Make re-runs idempotent: if an asset upload gets a 422 (already exists),
+  # delete the existing asset and re-upload instead of failing the release.
+  # Lets a release be safely re-run after a transient publisher failure (e.g. winget).
+  replace_existing_artifacts: true
+  # The workflow publishes winget in a separate best-effort step (WT_WINGET_ONLY=1)
+  # so its flakiness can't fail the release. In that step, disable the release-upload
+  # pipe so we don't churn assets that the main step already published.
+  disable: '{{ eq .Env.WT_WINGET_ONLY "1" }}'

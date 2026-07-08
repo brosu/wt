@@ -38,15 +38,33 @@ jobs:
           go-version: '1.26'
           cache: true
 
+      # Core release: binaries, GitHub release assets, homebrew, scoop, aur, nfpm.
+      # winget is skipped here and published separately below so its flakiness
+      # (transient microsoft/winget-pkgs 403s) can never fail the release.
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean
+          args: release --clean --skip=winget
         env:
+          WT_WINGET_ONLY: "0"
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token || github.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.generate-token.outputs.token || github.token }}
           SCOOP_BUCKET_TOKEN: ${{ steps.generate-token.outputs.token || github.token }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
+
+      # Best-effort winget update. Publishes only winget (release upload disabled
+      # via WT_WINGET_ONLY). continue-on-error so a winget hiccup never fails the
+      # release, which is already fully published by the step above.
+      - name: Publish to winget (best-effort)
+        continue-on-error: true
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --skip=homebrew,scoop,aur,nfpm
+        env:
+          WT_WINGET_ONLY: "1"
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token || github.token }}
           WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
