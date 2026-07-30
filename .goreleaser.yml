@@ -107,6 +107,11 @@ scoops:
 # WinGet package (Windows Package Manager)
 winget:
   - name: wt
+    # Explicit release-asset URL so the winget pipe doesn't depend on the
+    # release pipe: the best-effort winget step disables the release upload
+    # (WT_WINGET_ONLY=1), which otherwise removes the default url_template and
+    # fails with "release is disabled, cannot use default url_template".
+    url_template: "https://github.com/timvw/wt/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     publisher: timvw
     publisher_url: https://timvw.be
     publisher_support_url: https://github.com/timvw/wt/issues
