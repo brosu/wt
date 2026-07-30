@@ -14,6 +14,7 @@ import (
 var supportedShells = map[string]bool{
 	"bash":       true,
 	"zsh":        true,
+	"fish":       true,
 	"powershell": true,
 	"pwsh":       true, // alias for powershell
 }
@@ -33,6 +34,7 @@ var initCmd = &cobra.Command{
 Automatically detects your shell and updates the appropriate config file:
   - bash: ~/.bashrc
   - zsh:  ~/.zshrc (or $ZDOTDIR/.zshrc if ZDOTDIR is set)
+  - fish: ~/.config/fish/config.fish (or $XDG_CONFIG_HOME/fish/config.fish)
   - powershell: $PROFILE (Windows only)
 
 The configuration is wrapped in markers so it can be safely updated or removed.
@@ -40,13 +42,14 @@ The configuration is wrapped in markers so it can be safely updated or removed.
 Examples:
   wt init              # Auto-detect shell and configure
   wt init bash         # Configure for bash specifically
+  wt init fish         # Configure for fish specifically
   wt init --dry-run    # Preview changes without modifying files
   wt init --uninstall  # Remove wt configuration from shell`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		shell := detectShell(args)
 		if shell == "" {
-			return fmt.Errorf("could not detect shell. Please specify: wt init bash|zsh|powershell")
+			return fmt.Errorf("could not detect shell. Please specify: wt init bash|zsh|fish|powershell")
 		}
 
 		// PowerShell init is only supported on Windows because wt shellenv
@@ -131,6 +134,9 @@ func detectShell(args []string) string {
 
 	// 3. Check $SHELL environment variable
 	shellEnv := os.Getenv("SHELL")
+	if strings.Contains(shellEnv, "fish") {
+		return "fish"
+	}
 	if strings.Contains(shellEnv, "zsh") {
 		return "zsh"
 	}
@@ -140,6 +146,16 @@ func detectShell(args []string) string {
 
 	// 4. Default to bash on Unix
 	return "bash"
+}
+
+// resolveConfigDir resolves a shell config directory override (e.g. ZDOTDIR,
+// XDG_CONFIG_HOME) to an absolute, cleaned path, treating relative values as
+// relative to the user's home directory.
+func resolveConfigDir(home, dir string) string {
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(home, dir)
+	}
+	return filepath.Clean(dir)
 }
 
 // getShellConfigPath returns the path to the shell configuration file
@@ -164,12 +180,19 @@ func getShellConfigPath(shell string) string {
 		// Respect ZDOTDIR if set: zsh reads its startup files from $ZDOTDIR (default: $HOME).
 		// This avoids writing to the wrong (potentially unused or broken) ~/.zshrc.
 		if zdotdir := strings.TrimSpace(os.Getenv("ZDOTDIR")); zdotdir != "" {
-			if !filepath.IsAbs(zdotdir) {
-				zdotdir = filepath.Join(home, zdotdir)
-			}
-			return filepath.Join(filepath.Clean(zdotdir), ".zshrc")
+			return filepath.Join(resolveConfigDir(home, zdotdir), ".zshrc")
 		}
 		return filepath.Join(home, ".zshrc")
+	case "fish":
+		// Respect XDG_CONFIG_HOME when it is an absolute path, matching fish's
+		// own config resolution. Per the XDG Base Directory spec a relative
+		// value is invalid and must be ignored, so fall back to ~/.config
+		// rather than anchoring it under $HOME (which is where fish would not
+		// look, causing wt to write a config file fish never loads).
+		if xdgConfig := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); filepath.IsAbs(xdgConfig) {
+			return filepath.Join(filepath.Clean(xdgConfig), "fish", "config.fish")
+		}
+		return filepath.Join(home, ".config", "fish", "config.fish")
 	case "powershell":
 		// Check $PROFILE env var first (works for both Windows PowerShell 5.1 and PowerShell Core)
 		if profile := os.Getenv("PROFILE"); profile != "" {
@@ -196,6 +219,10 @@ func getShellConfigContent(shell string) string {
 	case "bash", "zsh":
 		return fmt.Sprintf(`%s
 eval "$(wt shellenv)"
+%s`, markerStart, markerEnd)
+	case "fish":
+		return fmt.Sprintf(`%s
+wt shellenv fish | source
 %s`, markerStart, markerEnd)
 	case "powershell":
 		return fmt.Sprintf(`%s
@@ -302,6 +329,8 @@ func installShellConfig(configPath, shell string, dryRun, noPrompt bool) error {
 			case "bash":
 				fmt.Printf("  source %s\n", configPath)
 			case "zsh":
+				fmt.Printf("  source %s\n", configPath)
+			case "fish":
 				fmt.Printf("  source %s\n", configPath)
 			case "powershell":
 				fmt.Println("  . $PROFILE")

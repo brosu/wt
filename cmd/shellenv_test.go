@@ -1,10 +1,25 @@
 package cmd
 
 import (
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
 )
+
+// envWithShell returns os.Environ() with any existing SHELL entry replaced
+// by shell, so the override is deterministic regardless of whether the
+// underlying OS/runtime resolves duplicate env entries by first or last
+// occurrence.
+func envWithShell(shell string) []string {
+	env := make([]string, 0, len(os.Environ())+1)
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "SHELL=") {
+			env = append(env, kv)
+		}
+	}
+	return append(env, "SHELL="+shell)
+}
 
 // TestShellenvInteractiveModeOutputCapture tests that the shell function
 // captures output for interactive commands (co/checkout/rm/remove/pr/mr with no args).
@@ -14,6 +29,7 @@ import (
 func TestShellenvInteractiveModeOutputCapture(t *testing.T) {
 	// Get the shellenv output
 	cmd := exec.Command("go", "run", "github.com/timvw/wt", "shellenv")
+	cmd.Env = envWithShell("/bin/bash")
 	output, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("Failed to run wt shellenv: %v", err)
@@ -62,6 +78,7 @@ func TestShellenvInteractiveModeOutputCapture(t *testing.T) {
 // BUG: Currently fails because compdef is called unconditionally
 func TestShellenvZshCompdefProtection(t *testing.T) {
 	cmd := exec.Command("go", "run", "github.com/timvw/wt", "shellenv")
+	cmd.Env = envWithShell("/bin/bash")
 	output, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("Failed to run wt shellenv: %v", err)
@@ -113,6 +130,7 @@ func TestShellenvZshCompdefError(t *testing.T) {
 // for checkout/co/create completes from all branches (not just existing worktrees).
 func TestShellenvCompletionCheckoutUsesAllBranches(t *testing.T) {
 	cmd := exec.Command("go", "run", "github.com/timvw/wt", "shellenv")
+	cmd.Env = envWithShell("/bin/bash")
 	output, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("Failed to run wt shellenv: %v", err)
@@ -144,6 +162,7 @@ func TestShellenvCompletionCheckoutUsesAllBranches(t *testing.T) {
 // for remove/rm only completes from existing worktrees (not all branches).
 func TestShellenvCompletionRemoveUsesWorktreeList(t *testing.T) {
 	cmd := exec.Command("go", "run", "github.com/timvw/wt", "shellenv")
+	cmd.Env = envWithShell("/bin/bash")
 	output, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("Failed to run wt shellenv: %v", err)
@@ -167,6 +186,7 @@ func TestShellenvCompletionRemoveUsesWorktreeList(t *testing.T) {
 // session re-sources shellenv.
 func TestShellenvBypassesWrapperForShellenv(t *testing.T) {
 	cmd := exec.Command("go", "run", "github.com/timvw/wt", "shellenv")
+	cmd.Env = envWithShell("/bin/bash")
 	output, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("Failed to run wt shellenv: %v", err)
@@ -179,5 +199,93 @@ func TestShellenvBypassesWrapperForShellenv(t *testing.T) {
 
 	if !strings.Contains(shellenv, `command wt "$@"`) {
 		t.Fatal("shellenv bypass must call binary directly using 'command wt \"$@\"'")
+	}
+}
+
+// TestShellenvTargetShell verifies the priority order used to determine
+// which shell integration to output: explicit argument > $SHELL > GOOS.
+func TestShellenvTargetShell(t *testing.T) {
+	origShell := os.Getenv("SHELL")
+	t.Cleanup(func() { os.Setenv("SHELL", origShell) })
+
+	tests := []struct {
+		name     string
+		args     []string
+		envShell string
+		want     string
+	}{
+		{name: "explicit fish argument", args: []string{"fish"}, want: "fish"},
+		{name: "explicit bash argument", args: []string{"bash"}, want: "bash"},
+		{name: "explicit zsh argument maps to bash output", args: []string{"zsh"}, want: "bash"},
+		{name: "explicit powershell argument", args: []string{"powershell"}, want: "powershell"},
+		{name: "explicit pwsh argument maps to powershell", args: []string{"pwsh"}, want: "powershell"},
+		{name: "unknown explicit argument falls back to detection", args: []string{"tcsh"}, envShell: "/bin/bash", want: "bash"},
+		{name: "no args, SHELL=fish", args: []string{}, envShell: "/usr/bin/fish", want: "fish"},
+		{name: "no args, SHELL=bash", args: []string{}, envShell: "/bin/bash", want: "bash"},
+		{name: "no args, no SHELL", args: []string{}, envShell: "", want: "bash"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Setenv("SHELL", tt.envShell)
+			if got := shellenvTargetShell(tt.args); got != tt.want {
+				t.Errorf("shellenvTargetShell(%v) with SHELL=%q = %q, want %q", tt.args, tt.envShell, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestFishShellenvScript verifies key elements of the fish integration script.
+func TestFishShellenvScript(t *testing.T) {
+	script := fishShellenvScript()
+
+	for _, want := range []string{
+		"function wt",
+		"end",
+		"complete -c wt",
+		"__wt_complete_branches",
+		"__wt_complete_worktree_branches",
+		"mktemp -t wt.XXXXXX",
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("fishShellenvScript() missing %q", want)
+		}
+	}
+
+	if strings.Contains(script, "wt() {") {
+		t.Error("fishShellenvScript() should not contain POSIX-style 'wt() {' function definition")
+	}
+}
+
+// TestShellenvFishOutput verifies that `wt shellenv fish` outputs a
+// fish-compatible integration script (fish `function`/`end` syntax rather
+// than POSIX `wt() { ... }`), and that fish auto-detection via $SHELL works.
+func TestShellenvFishOutput(t *testing.T) {
+	cmd := exec.Command("go", "run", "github.com/timvw/wt", "shellenv", "fish")
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("Failed to run wt shellenv fish: %v", err)
+	}
+	shellenv := string(output)
+
+	if !strings.Contains(shellenv, "function wt") {
+		t.Error("fish shellenv should define 'function wt'")
+	}
+	if !strings.Contains(shellenv, "complete -c wt") {
+		t.Error("fish shellenv should register completions using 'complete -c wt'")
+	}
+	if strings.Contains(shellenv, "wt() {") {
+		t.Error("fish shellenv should not contain POSIX-style 'wt() {' function definition")
+	}
+
+	// Auto-detect fish via $SHELL when no explicit argument is given
+	cmd = exec.Command("go", "run", "github.com/timvw/wt", "shellenv")
+	cmd.Env = envWithShell("/usr/bin/fish")
+	output, err = cmd.Output()
+	if err != nil {
+		t.Fatalf("Failed to run wt shellenv with SHELL=fish: %v", err)
+	}
+	if !strings.Contains(string(output), "function wt") {
+		t.Error("shellenv should auto-detect fish via $SHELL and output fish script")
 	}
 }
