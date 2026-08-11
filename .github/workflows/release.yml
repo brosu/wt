@@ -38,33 +38,48 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      # Core release: binaries, GitHub release assets, homebrew, scoop, aur, nfpm.
-      # winget is skipped here and published separately below so its flakiness
-      # (transient microsoft/winget-pkgs 403s) can never fail the release.
+      # Core release: binaries, GitHub release assets, homebrew, scoop, nfpm.
+      # aur and winget both depend on third-party services that go down
+      # (AUR maintenance windows, transient microsoft/winget-pkgs 403s), so they
+      # are published in separate best-effort steps below. Anything that fails
+      # here is our problem and must fail the release.
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --skip=winget
+          args: release --clean --skip=winget,aur
         env:
-          WT_WINGET_ONLY: "0"
+          WT_SKIP_RELEASE_UPLOAD: "0"
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token || github.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.generate-token.outputs.token || github.token }}
           SCOOP_BUCKET_TOKEN: ${{ steps.generate-token.outputs.token || github.token }}
+
+      # Best-effort AUR publish, in its own step so an AUR outage cannot skip the
+      # winget step that follows it (GitHub skips all later steps once a step
+      # fails, which is how the v0.1.32 AUR outage blocked winget entirely).
+      # Release upload is disabled here so we don't churn assets already published.
+      - name: Publish to AUR (best-effort)
+        continue-on-error: true
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --skip=homebrew,scoop,nfpm,winget
+        env:
+          WT_SKIP_RELEASE_UPLOAD: "1"
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token || github.token }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
 
-      # Best-effort winget update. Publishes only winget (release upload disabled
-      # via WT_WINGET_ONLY). continue-on-error so a winget hiccup never fails the
-      # release, which is already fully published by the step above.
+      # Best-effort winget update, independent of the AUR step above.
       - name: Publish to winget (best-effort)
         continue-on-error: true
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --skip=homebrew,scoop,aur,nfpm
+          args: release --clean --skip=homebrew,scoop,nfpm,aur
         env:
-          WT_WINGET_ONLY: "1"
+          WT_SKIP_RELEASE_UPLOAD: "1"
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token || github.token }}
           WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}

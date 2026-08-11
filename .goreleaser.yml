@@ -129,8 +129,9 @@ winget:
   - name: wt
     # Explicit release-asset URL so the winget pipe doesn't depend on the
     # release pipe: the best-effort winget step disables the release upload
-    # (WT_WINGET_ONLY=1), which otherwise removes the default url_template and
-    # fails with "release is disabled, cannot use default url_template".
+    # (WT_SKIP_RELEASE_UPLOAD=1), which otherwise removes the default
+    # url_template and fails with "release is disabled, cannot use default
+    # url_template".
     url_template: "https://github.com/timvw/wt/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     publisher: timvw
     publisher_url: https://timvw.be
@@ -162,6 +163,10 @@ winget:
 # AUR package
 aurs:
   - name: wt-bin
+    # Explicit release-asset URL for the same reason as the winget pipe above:
+    # the best-effort AUR step disables the release upload, which otherwise
+    # removes the default url_template.
+    url_template: "https://github.com/timvw/wt/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     homepage: https://github.com/timvw/wt
     description: A fast, simple Git worktree helper
     maintainers:
@@ -184,7 +189,8 @@ release:
   # delete the existing asset and re-upload instead of failing the release.
   # Lets a release be safely re-run after a transient publisher failure (e.g. winget).
   replace_existing_artifacts: true
-  # The workflow publishes winget in a separate best-effort step (WT_WINGET_ONLY=1)
-  # so its flakiness can't fail the release. In that step, disable the release-upload
-  # pipe so we don't churn assets that the main step already published.
-  disable: '{{ eq .Env.WT_WINGET_ONLY "1" }}'
+  # The workflow publishes aur and winget in separate best-effort steps
+  # (WT_SKIP_RELEASE_UPLOAD=1) so a third-party outage can't fail the release.
+  # In those steps, disable the release-upload pipe so we don't churn assets the
+  # main step already published. envOrDefault keeps local runs working unset.
+  disable: '{{ eq (envOrDefault "WT_SKIP_RELEASE_UPLOAD" "0") "1" }}'
